@@ -18,7 +18,6 @@ dependencies = [
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
-
 [tool.hatch.version]
 source = "regex"
 path = "VERSION"
