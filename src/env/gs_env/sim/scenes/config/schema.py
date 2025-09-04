@@ -1,8 +1,9 @@
 from typing import TypeAlias
 
-import genesis as gs
 from gs_schemas.base_types import genesis_pydantic_config
 from pydantic import BaseModel
+
+import genesis as gs
 
 
 class BaseSceneArgs(BaseModel):

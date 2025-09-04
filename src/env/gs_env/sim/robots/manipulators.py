@@ -1,9 +1,9 @@
 from typing import Any
 
-import genesis as gs
 import torch
 from gymnasium import spaces
 
+import genesis as gs
 from gs_env.common.bases.base_robot import BaseGymRobot
 from gs_env.sim.robots.config.schema import (
     CtrlType,

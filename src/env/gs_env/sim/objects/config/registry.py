@@ -1,7 +1,6 @@
 from typing import TypeAlias
 
 import genesis as gs
-
 from gs_env.sim.objects.config.schema import (
     BoxMorphArgs,
     MeshObjectArgs,
