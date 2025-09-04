@@ -20,6 +20,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = []
+include = []
 
 [tool.hatch.version]
 source = "regex"
