@@ -1,3 +1,0 @@
-#!/bin/bash
-# Ruff wrapper for CI compatibility
-exec uv run ruff check "$@"
