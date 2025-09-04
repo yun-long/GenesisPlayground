@@ -63,8 +63,6 @@ class SO101Robot(BaseGymRobot):
                 self.previous_target_position = self.target_position.copy()
                 self.previous_target_orientation = self.target_orientation.copy()
 
-                print(f"Initialized robot target position: {self.target_position}")
-                print(f"Initialized robot target orientation: {self.target_orientation}")
         except Exception as e:
             print(f"Failed to get initial pose: {e}")
 
@@ -81,6 +79,10 @@ class SO101Robot(BaseGymRobot):
 
     def apply_teleop_command(self, command: Any) -> None:
         """Apply teleop command using hybrid IK + direct joint control (like original script)."""
+        # If reset is requested, don't process position/orientation commands
+        if command.reset_scene:
+            return  # Let the environment handle the reset
+        
         # Update target pose
         self.target_position = command.position.copy()
         self.target_orientation = command.orientation.copy()
@@ -153,10 +155,8 @@ class SO101Robot(BaseGymRobot):
                 else:
                     max_err = float(err)
 
-                # Only print IK info occasionally to avoid spam
-                if max_err > 0.1:
-                    print(f"IK target error: {max_err:.4f}")
-
+                # IK error checking (removed debug print)
+                pass
             except Exception:
                 # IK failure is not critical since we're using direct joint control
                 pass
@@ -179,15 +179,25 @@ class SO101Robot(BaseGymRobot):
 
     def reset_to_pose(self, joint_angles: NDArray[np.float64]) -> None:
         """Reset robot to specified joint configuration."""
+        # Put joints at the reset pose
         self.entity.set_qpos(joint_angles[:-1], self.motors_dof)
 
-        # Update target pose to match new configuration
+        # NEW: set controller targets to match the new pose so it doesn't chase old targets
+        try:
+            q_now = self.entity.get_qpos()
+            self.entity.control_dofs_position(q_now[:-1], self.motors_dof)
+        except Exception as e:
+            print(f"Failed to set controller targets after reset: {e}")
+
+        # Update target pose to match new configuration (and delta baseline)
         try:
             pos, quat = self.get_ee_pose()
             if pos is not None:
                 self.target_position = pos.copy()
                 rot = R.from_quat(quat)
                 self.target_orientation = rot.as_euler('xyz')
+                self.previous_target_position = self.target_position.copy()
+                self.previous_target_orientation = self.target_orientation.copy()
         except Exception as e:
             print(f"Failed to update target pose: {e}")
 
@@ -204,7 +214,7 @@ class SO101Robot(BaseGymRobot):
     def get_joint_positions(self) -> NDArray[np.float64]:
         """Get current joint positions."""
         try:
-            return self.entity.get_qpos().copy()
+            return self.entity.get_qpos().clone()
         except Exception as e:
             print(f"Failed to get joint positions: {e}")
             return np.zeros(6)

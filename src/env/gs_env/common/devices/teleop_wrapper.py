@@ -1,4 +1,5 @@
 import threading
+import time
 from typing import Any
 
 import numpy as np
@@ -47,8 +48,11 @@ class TeleopObservation:
 class TeleopWrapper(Device[TeleopCommand]):
     """Robot-agnostic teleop wrapper that sends 6-DOF commands to task environments."""
 
-    def __init__(self, movement_speed: float = 0.01, rotation_speed: float = 0.05) -> None:
+    def __init__(self, environment: Any, movement_speed: float = 0.01, rotation_speed: float = 0.05) -> None:
         super().__init__()
+
+        # Environment that this teleop wrapper controls
+        self.environment = environment
 
         # Movement parameters
         self.movement_speed = movement_speed * 2  # Doubled for faster movement
@@ -58,18 +62,11 @@ class TeleopWrapper(Device[TeleopCommand]):
         self.pressed_keys = set()
         self.lock = threading.Lock()
         self.listener = None
+        self.running = False
 
         # Current command state - will be initialized by the robot
         self.current_position: NDArray[np.float64] | None = None  # Will be set by robot's initial pose
         self.current_orientation: NDArray[np.float64] | None = None  # Will be set by robot's initial pose
-
-        # Callback for sending commands to task environment
-        self.command_callback = None
-        self.observation_callback = None
-
-        # Control loop
-        self.running = False
-        self.control_thread = None
 
     def start(self) -> None:
         """Start keyboard listener (like original KeyboardDevice)."""
@@ -105,6 +102,15 @@ class TeleopWrapper(Device[TeleopCommand]):
         print("u - Reset Scene")
         print("space - Press to close gripper, release to open gripper")
         print("esc - Quit")
+
+    def run(self) -> None:
+        """Run the main control loop in a separate thread."""
+        import threading
+        self.control_thread = threading.Thread(target=self._run_control_loop, daemon=True)
+        self.control_thread.start()
+        
+        # Wait for the control thread to finish
+        self.control_thread.join()
 
     def stop(self) -> None:
         """Stop keyboard listener."""
@@ -248,3 +254,128 @@ class TeleopWrapper(Device[TeleopCommand]):
             return self.current_position.copy(), self.current_orientation.copy()
         else:
             return np.zeros(3), np.zeros(3)
+
+    def _initialize_current_pose(self) -> None:
+        """Initialize current pose from environment."""
+        try:
+            # Get initial pose from environment
+            obs = self.environment.get_observation()
+            if obs is not None:
+                self.current_position = obs['end_effector_pos'].copy()
+                # Convert quaternion to euler angles
+                from scipy.spatial.transform import Rotation as R
+                quat = obs['end_effector_quat']
+                rot = R.from_quat(quat)
+                self.current_orientation = rot.as_euler('xyz')
+                print(f"Initialized teleop pose: pos={self.current_position}, orient={self.current_orientation}")
+        except Exception as e:
+            print(f"Failed to initialize current pose: {e}")
+            # Use default values
+            self.current_position = np.array([0.0, 0.0, 0.3])
+            self.current_orientation = np.array([0.0, 0.0, 0.0])
+
+    def _run_control_loop(self) -> None:
+        """Run the main control loop."""
+        print("SO101 Cube Environment ready for teleop!")
+        print("Use keyboard controls to move the robot.")
+        print("Press ESC to quit.")
+
+        try:
+            # Main simulation loop
+            step_count = 0
+            while self.running:
+                # Process keyboard input
+                self._process_input()
+
+                # Step the environment
+                self.environment.step()
+                step_count += 1
+
+                # Print status every 1000 steps
+                if step_count % 1000 == 0:
+                    print(f"Running... Step {step_count}")
+
+                # Check for quit command
+                if (hasattr(self, 'last_command') and
+                    self.last_command and
+                    hasattr(self.last_command, 'quit_teleop') and
+                    self.last_command.quit_teleop):
+                    print("Quit command received, exiting...")
+                    break
+
+                # Safety check - exit after 1 hour of running
+                if step_count > 180000:  # 1 hour at 50Hz
+                    print("Maximum runtime reached, exiting...")
+                    break
+
+                # Small delay to control simulation frequency
+                time.sleep(0.02)  # 50 Hz
+
+        except KeyboardInterrupt:
+            print("\nInterrupted by user (Ctrl+C)")
+        except Exception as e:
+            print(f"Error in control loop: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Clean up
+            self.stop()
+            print("Teleop session ended.")
+
+    def _process_input(self) -> None:
+        """Process keyboard input and send commands to environment."""
+        with self.lock:
+            if not self.pressed_keys:
+                return  # No keys pressed, no command to send
+
+        # Initialize current pose if not set
+        if self.current_position is None or self.current_orientation is None:
+            self._initialize_current_pose()
+
+        # Calculate new position and orientation based on pressed keys
+        new_position = self.current_position.copy()
+        new_orientation = self.current_orientation.copy()
+
+        with self.lock:
+            # Position controls
+            if keyboard.Key.up in self.pressed_keys:
+                new_position[0] += self.movement_speed  # Move forward (X+)
+            if keyboard.Key.down in self.pressed_keys:
+                new_position[0] -= self.movement_speed  # Move backward (X-)
+            if keyboard.Key.right in self.pressed_keys:
+                new_position[1] += self.movement_speed  # Move right (Y+)
+            if keyboard.Key.left in self.pressed_keys:
+                new_position[1] -= self.movement_speed  # Move left (Y-)
+            if keyboard.KeyCode.from_char('n') in self.pressed_keys:
+                new_position[2] += self.movement_speed  # Move up (Z+)
+            if keyboard.KeyCode.from_char('m') in self.pressed_keys:
+                new_position[2] -= self.movement_speed  # Move down (Z-)
+
+            # Orientation controls
+            if keyboard.KeyCode.from_char('j') in self.pressed_keys:
+                new_orientation[2] += self.rotation_speed  # Rotate counterclockwise
+            if keyboard.KeyCode.from_char('k') in self.pressed_keys:
+                new_orientation[2] -= self.rotation_speed  # Rotate clockwise
+
+            # Gripper control
+            gripper_close = keyboard.KeyCode.from_char('g') in self.pressed_keys
+
+            # Special commands
+            reset_scene = keyboard.KeyCode.from_char('r') in self.pressed_keys
+            quit_teleop = keyboard.Key.esc in self.pressed_keys
+
+        # Create command
+        command = TeleopCommand(
+            position=new_position,
+            orientation=new_orientation,
+            gripper_close=gripper_close,
+            reset_scene=reset_scene,
+            quit_teleop=quit_teleop
+        )
+
+        # Send command to environment
+        self.environment.apply_command(command)
+
+        # Update current pose
+        self.current_position = new_position.copy()
+        self.current_orientation = new_orientation.copy()
