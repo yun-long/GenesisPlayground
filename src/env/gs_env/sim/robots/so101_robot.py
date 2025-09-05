@@ -25,7 +25,6 @@ class SO101Robot(BaseGymRobot):
             material=gs.materials.Rigid(gravity_compensation=1),
             morph=gs.morphs.MJCF(
                 file="genesis/assets/xml/so101_robot/so101_robot.xml",
-                euler=(0, 0, 0),
                 convexify=True,
                 decompose_robot_error_threshold=0,
             ),
