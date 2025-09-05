@@ -204,8 +204,20 @@ class SO101Robot(BaseGymRobot):
     def get_ee_pose(self) -> tuple[NDArray[np.float64] | None, NDArray[np.float64] | None]:
         """Get current end-effector pose."""
         try:
-            pos = np.array(self.ee_link.get_pos())
-            quat = np.array(self.ee_link.get_quat())
+            pos_tensor = self.ee_link.get_pos()
+            quat_tensor = self.ee_link.get_quat()
+            
+            # Convert PyTorch tensors to numpy arrays, handling MPS device
+            if isinstance(pos_tensor, torch.Tensor):
+                pos = pos_tensor.cpu().numpy()
+            else:
+                pos = np.array(pos_tensor)
+                
+            if isinstance(quat_tensor, torch.Tensor):
+                quat = quat_tensor.cpu().numpy()
+            else:
+                quat = np.array(quat_tensor)
+                
             return pos, quat
         except Exception as e:
             print(f"Failed to get EE pose: {e}")
@@ -214,7 +226,11 @@ class SO101Robot(BaseGymRobot):
     def get_joint_positions(self) -> NDArray[np.float64]:
         """Get current joint positions."""
         try:
-            return self.entity.get_qpos().clone()
+            qpos_tensor = self.entity.get_qpos()
+            if isinstance(qpos_tensor, torch.Tensor):
+                return qpos_tensor.cpu().numpy()
+            else:
+                return np.array(qpos_tensor)
         except Exception as e:
             print(f"Failed to get joint positions: {e}")
             return np.zeros(6)

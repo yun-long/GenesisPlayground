@@ -151,7 +151,12 @@ class SO101CubeEnv:
         """Update target visualization to match robot end-effector."""
         try:
             pos, quat = self.entities["robot"].get_ee_pose()
-            if pos is not None:
+            if pos is not None and quat is not None:
+                # Ensure we have numpy arrays
+                if isinstance(pos, torch.Tensor):
+                    pos = pos.cpu().numpy()
+                if isinstance(quat, torch.Tensor):
+                    quat = quat.cpu().numpy()
                 self.entities["target"].set_qpos(np.concatenate([pos, quat]))
         except Exception as e:
             print(f"Failed to update target visualization: {e}")
