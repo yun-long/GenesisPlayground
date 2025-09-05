@@ -1,4 +1,4 @@
-import json
+import pickle
 import os
 import threading
 import time
@@ -16,7 +16,7 @@ from gs_agent.bases.env_wrapper import BaseEnvWrapper
 # Constants for trajectory management
 TRAJECTORY_DIR = "trajectories"
 TRAJECTORY_FILENAME_PREFIX = "so101_pick_place_"
-TRAJECTORY_FILE_EXTENSION = ".json"
+TRAJECTORY_FILE_EXTENSION = ".pkl"
 
 # Type alias for trajectory step data
 TrajectoryStep = dict[str, Any]
@@ -32,12 +32,19 @@ class TeleopCommand:
         gripper_close: bool = False,
         reset_scene: bool = False,
         quit_teleop: bool = False,
+        absolute_pose: bool = False,   # <-- NEW
+        # NEW:
+        absolute_joints: bool = False,
+        joint_targets: NDArray[np.float64] | None = None,
     ) -> None:
         self.position: NDArray[np.float64] = position
         self.orientation: NDArray[np.float64] = orientation
         self.gripper_close: bool = gripper_close
         self.reset_scene: bool = reset_scene
         self.quit_teleop: bool = quit_teleop
+        self.absolute_pose: bool = absolute_pose
+        self.absolute_joints: bool = absolute_joints
+        self.joint_targets: NDArray[np.float64] | None = joint_targets
 
 
 class TeleopWrapper(BaseEnvWrapper):
@@ -55,7 +62,7 @@ class TeleopWrapper(BaseEnvWrapper):
 
         # Movement parameters
         self.movement_speed = movement_speed * 2  # Doubled for faster movement
-        self.rotation_speed = rotation_speed * 2  # Doubled for faster movement
+        self.rotation_speed = 0.05  # Match robot's direct_joint_change for consistent behavior
         
         # Replay parameters
         self.replay_steps_per_command = replay_steps_per_command
@@ -80,6 +87,7 @@ class TeleopWrapper(BaseEnvWrapper):
         self.recording = False
         self.trajectory_data: list[TrajectoryStep] = []
         self.recording_start_time: float | None = None
+        self.in_initial_state = True  # Track if we're in initial state after reset
 
         # Initialize current pose from environment if available
         if self.env is not None:
@@ -161,6 +169,8 @@ class TeleopWrapper(BaseEnvWrapper):
                 # Stop recording when scene resets
                 if self.recording:
                     self.stop_recording()
+                # Mark that we're now in initial state (can start recording)
+                self.in_initial_state = True
                 # NEW: prevent immediate follow-up movement from any stuck keys
                 with self.lock:
                     self.pressed_keys.clear()
@@ -206,16 +216,22 @@ class TeleopWrapper(BaseEnvWrapper):
     def _initialize_current_pose(self) -> None:
         """Initialize current pose from environment."""
         env = getattr(self, '_teleop_env', None) or self.env
-        if env is not None:
-            obs = env.get_observation()
-            if obs is not None:
-                self.current_position = obs['end_effector_pos'].copy()
-                from scipy.spatial.transform import Rotation as R
-                quat = obs['end_effector_quat']
-                rot = R.from_quat(quat)
-                self.current_orientation = rot.as_euler('xyz')
-            self.current_position = np.array([0.0, 0.0, 0.3])
-            self.current_orientation = np.array([0.0, 0.0, 0.0])
+        try:
+            if env is not None:
+                obs = env.get_observation()
+                if obs is not None:
+                    self.current_position = obs['end_effector_pos'].copy()
+                    from scipy.spatial.transform import Rotation as R
+                    quat = obs['end_effector_quat']
+                    rot = R.from_quat(quat)
+                    self.current_orientation = rot.as_euler('xyz')
+                    return  # success
+        except Exception as e:
+            print(f"Failed to initialize current pose: {e}")
+
+        # Fallback only if we couldn't read from env
+        self.current_position = np.array([0.0, 0.0, 0.3])
+        self.current_orientation = np.array([0.0, 0.0, 0.0])
 
     # NEW: resync cached pose from the environment’s real EE pose
     def _sync_pose_from_env(self) -> None:
@@ -262,7 +278,12 @@ class TeleopWrapper(BaseEnvWrapper):
             if self.recording:
                 self.stop_recording()
             else:
-                self.start_recording()
+                # Only allow starting recording if we're in initial state
+                if self.in_initial_state:
+                    self.start_recording()
+                else:
+                    print("⚠️  Can only start recording from initial state after reset. Press 'u' to reset first.")
+                    print("   💡 Recording must start immediately after scene reset to capture initial target and cube positions.")
         self.last_recording_key_state = current_recording_key_state
 
 
@@ -323,6 +344,9 @@ class TeleopWrapper(BaseEnvWrapper):
         if has_movement and not reset_scene:
             self.current_position = new_position.copy()
             self.current_orientation = new_orientation.copy()
+            # Mark that we're no longer in initial state once movement starts
+            if self.in_initial_state:
+                self.in_initial_state = False
 
         return command
 
@@ -367,7 +391,60 @@ class TeleopWrapper(BaseEnvWrapper):
             self.recording = True
             self.trajectory_data = []
             self.recording_start_time = time.time()
+            
+            # Record initial state (target and cube positions)
+            self._record_initial_state()
+            
             print("🎬 Started recording trajectory...")
+
+    def _record_initial_state(self) -> None:
+        """Record the initial state of the environment (target and cube positions)."""
+        if not hasattr(self, '_teleop_env') or self._teleop_env is None:
+            return
+        
+        initial_state = {
+            "timestamp": 0.0,
+            "command": {
+                "position": [0.0, 0.0, 0.0],  # Dummy command for initial state
+                "orientation": [0.0, 0.0, 0.0],
+                "gripper_close": False,
+                "reset_scene": False,
+                "quit_teleop": False
+            },
+            "target": {
+                "position": [0.0, 0.0, 0.0],  # Will be filled below
+                "orientation": [0.0, 0.0, 0.0]
+            },
+            "observation": {},
+            "is_initial_state": True  # Mark this as initial state
+        }
+        
+        # Add target location (debug sphere position)
+        if hasattr(self._teleop_env, 'target_location'):
+            initial_state["target_location"] = self._teleop_env.target_location.tolist()
+            initial_state["target"]["position"] = self._teleop_env.target_location.tolist()
+        
+        # Add cube position and orientation
+        if hasattr(self._teleop_env, 'entities') and 'cube' in self._teleop_env.entities:
+            cube_entity = self._teleop_env.entities['cube']
+            initial_state["cube_state"] = {
+                "position": np.array(cube_entity.get_pos()).tolist(),
+                "orientation": np.array(cube_entity.get_quat()).tolist()
+            }
+        
+        # Add robot initial state
+        if hasattr(self._teleop_env, 'entities') and 'robot' in self._teleop_env.entities:
+            robot_obs = self._teleop_env.entities['robot'].get_observation()
+            if robot_obs:
+                for key, value in robot_obs.items():
+                    if isinstance(value, np.ndarray):
+                        initial_state["observation"][key] = value.tolist()
+                    elif isinstance(value, torch.Tensor):
+                        initial_state["observation"][key] = value.detach().cpu().numpy().tolist()
+                    else:
+                        initial_state["observation"][key] = value
+        
+        self.trajectory_data.append(initial_state)
 
     def stop_recording(self) -> None:
         """Stop recording and save trajectory to disk."""
@@ -418,6 +495,26 @@ class TeleopWrapper(BaseEnvWrapper):
         if hasattr(self, '_teleop_env') and self._teleop_env is not None:
             if hasattr(self._teleop_env, 'target_location'):
                 step_data["target_location"] = self._teleop_env.target_location.tolist()
+            
+            # Add cube position and orientation to trajectory data
+            if hasattr(self._teleop_env, 'entities') and 'cube' in self._teleop_env.entities:
+                cube_entity = self._teleop_env.entities['cube']
+                step_data["cube_state"] = {
+                    "position": np.array(cube_entity.get_pos()).tolist(),
+                    "orientation": np.array(cube_entity.get_quat()).tolist()
+                }
+
+        # Add robot joint positions (authoritative)
+        if hasattr(self, '_teleop_env') and self._teleop_env is not None:
+            robot = getattr(self._teleop_env, 'entities', {}).get('robot')
+            if robot is not None and hasattr(robot, 'entity'):
+                try:
+                    q = robot.entity.get_qpos()
+                    if isinstance(q, torch.Tensor):
+                        q = q.detach().cpu().numpy()
+                    step_data["robot_joints"] = np.asarray(q).tolist()
+                except Exception as e:
+                    print(f"Warn: failed to read robot joints for recording: {e}")
 
         self.trajectory_data.append(step_data)
 
@@ -454,8 +551,8 @@ class TeleopWrapper(BaseEnvWrapper):
             "trajectory": self.trajectory_data
         }
 
-        with open(filename, 'w') as f:
-            json.dump(trajectory_info, f, indent=2)
+        with open(filename, 'wb') as f:
+            pickle.dump(trajectory_info, f)
         print(f"💾 Trajectory saved to: {filename}")
         print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
         print(f"   - Steps: {trajectory_info['metadata']['num_steps']}")
@@ -482,8 +579,8 @@ class TeleopWrapper(BaseEnvWrapper):
             return
 
         # Load trajectory
-        with open(traj_file_path, 'r') as f:
-            trajectory_info = json.load(f)
+        with open(traj_file_path, 'rb') as f:
+            trajectory_info = pickle.load(f)
         
         trajectory = trajectory_info['trajectory']
         print(f"🎬 Replaying trajectory: {traj_file_path}")
@@ -495,29 +592,144 @@ class TeleopWrapper(BaseEnvWrapper):
         print("🔄 Resetting environment...")
         self._teleop_env.reset_idx(None)
         
+        # Clear any existing debug objects to prevent duplicates
+        if hasattr(self._teleop_env, 'scene'):
+            self._teleop_env.scene.clear_debug_objects()
+        
         # Wait for viewer to be ready
         print("⏳ Waiting for viewer to be ready...")
         time.sleep(self.viewer_init_delay)  # Configurable pause for viewer initialization
         
-        # Replay each step
+        # Restore initial cube and target positions from recorded trajectory
+        initial_state = None
+        for step_data in trajectory:
+            if step_data.get('is_initial_state', False):
+                initial_state = step_data
+                break
+        
+        if initial_state:
+            print("📍 Restoring initial cube and target positions...")
+            # Restore target location
+            if 'target_location' in initial_state and hasattr(self._teleop_env, 'target_location'):
+                # Clear any existing debug objects first
+                if hasattr(self._teleop_env, 'scene'):
+                    self._teleop_env.scene.clear_debug_objects()
+                self._teleop_env.target_location = np.array(initial_state['target_location'])
+                self._teleop_env._draw_target_visualization(self._teleop_env.target_location)
+            
+            # Restore cube position and orientation
+            if 'cube_state' in initial_state and hasattr(self._teleop_env, 'entities') and 'cube' in self._teleop_env.entities:
+                cube_entity = self._teleop_env.entities['cube']
+                cube_state = initial_state['cube_state']
+                cube_entity.set_pos(cube_state['position'])
+                cube_entity.set_quat(cube_state['orientation'])
+                print(f"   - Cube restored to position: {cube_state['position']}")
+                print(f"   - Target restored to position: {initial_state['target_location']}")
+            
+            # Reset robot's internal target pose tracking to match recorded initial state
+            if hasattr(self._teleop_env, 'entities') and 'robot' in self._teleop_env.entities:
+                robot = self._teleop_env.entities['robot']
+                if hasattr(robot, 'target_position') and hasattr(robot, 'target_orientation'):
+                    # Use recorded robot initial state if available
+                    if 'observation' in initial_state and 'end_effector_pos' in initial_state['observation']:
+                        # Set robot target to recorded initial pose
+                        robot.target_position = np.array(initial_state['observation']['end_effector_pos'])
+                        if 'end_effector_quat' in initial_state['observation']:
+                            from scipy.spatial.transform import Rotation as R
+                            quat = initial_state['observation']['end_effector_quat']
+                            rot = R.from_quat(quat)
+                            robot.target_orientation = rot.as_euler('xyz')
+                        else:
+                            # Fallback to current pose if no recorded orientation
+                            from scipy.spatial.transform import Rotation as R
+                            pos, quat = robot.get_ee_pose()
+                            if pos is not None:
+                                rot = R.from_quat(quat)
+                                robot.target_orientation = rot.as_euler('xyz')
+                        
+                        # Set previous targets to match current targets (no delta movement initially)
+                        robot.previous_target_position = robot.target_position.copy()
+                        robot.previous_target_orientation = robot.target_orientation.copy()
+                        
+                        # Also restore joint positions if available in recorded data
+                        if 'joint_positions' in initial_state['observation']:
+                            joint_pos = np.array(initial_state['observation']['joint_positions'])
+                            if hasattr(robot, 'entity') and hasattr(robot, 'motors_dof'):
+                                robot.entity.set_qpos(joint_pos[:-1], robot.motors_dof)
+                                print(f"   - Robot joints restored to recorded initial positions")
+                        
+                        print(f"   - Robot target pose reset to recorded initial pose: {robot.target_position}")
+                    else:
+                        # Fallback: get current robot pose and set it as the baseline
+                        pos, quat = robot.get_ee_pose()
+                        if pos is not None:
+                            robot.target_position = pos.copy()
+                            from scipy.spatial.transform import Rotation as R
+                            rot = R.from_quat(quat)
+                            robot.target_orientation = rot.as_euler('xyz')
+                            robot.previous_target_position = robot.target_position.copy()
+                            robot.previous_target_orientation = robot.target_orientation.copy()
+                            print(f"   - Robot target pose reset to current pose (fallback)")
+        else:
+            print("⚠️  No initial state found in trajectory")
+        
+        # Replay each step with proper timing
+        last_timestamp = 0.0
+        
         for i, step_data in enumerate(trajectory):
-            # Create command from step data
+            # Skip initial state step (timestamp 0.0) as it's just for reference
+            if step_data.get('is_initial_state', False):
+                print("📍 Initial state recorded - target and cube positions captured")
+                continue
+            
+            # Calculate time delay based on actual trajectory timing
+            current_timestamp = step_data['timestamp']
+            if i > 0:
+                time_delay = current_timestamp - last_timestamp
+                # Cap the delay to reasonable bounds (10ms to 200ms)
+                time_delay = max(0.01, min(0.2, time_delay))
+                time.sleep(time_delay)
+            
+            # Use the actual recorded positions from the trajectory
+            # The trajectory contains the correct end-effector positions that the robot should move to
+            current_position = np.array(step_data['command']['position'])
+            current_orientation = np.array(step_data['command']['orientation'])
+            
+            
+            
+            
+            # Create command using the recorded positions directly
+            joint_targets = None
+            if "robot_joints" in step_data:
+                joint_targets = np.array(step_data["robot_joints"], dtype=float)
+
             command = TeleopCommand(
-                position=np.array(step_data['command']['position']),
-                orientation=np.array(step_data['command']['orientation']),
+                position=current_position,
+                orientation=current_orientation,
                 gripper_close=step_data['command']['gripper_close'],
                 reset_scene=step_data['command']['reset_scene'],
-                quit_teleop=step_data['command']['quit_teleop']
+                quit_teleop=step_data['command']['quit_teleop'],
+                absolute_joints=joint_targets is not None,   # NEW
+                joint_targets=joint_targets,                  # NEW
             )
+            
             
             # Apply command to environment
             self._teleop_env.apply_command(command)
             
-            # Step the environment multiple times to keep viewer active
-            for _ in range(self.replay_steps_per_command):  # Configurable steps per command for smooth visualization
-                self._teleop_env.step()
-                time.sleep(0.02)  # 20ms between simulation steps
+            # Restore cube position if available in trajectory data
+            if 'cube_state' in step_data and hasattr(self._teleop_env, 'entities') and 'cube' in self._teleop_env.entities:
+                cube_entity = self._teleop_env.entities['cube']
+                cube_state = step_data['cube_state']
+                cube_entity.set_pos(cube_state['position'])
+                cube_entity.set_quat(cube_state['orientation'])
             
+            # Step the environment multiple times to ensure the robot reaches the target
+            for _ in range(5):  # Increased for better movement completion
+                self._teleop_env.step()
+            
+            # Update last timestamp
+            last_timestamp = current_timestamp
             
             # Print progress every 10% of trajectory
             if (i + 1) % max(1, len(trajectory) // 10) == 0:

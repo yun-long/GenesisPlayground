@@ -81,6 +81,33 @@ class SO101Robot(BaseGymRobot):
         if command.reset_scene:
             return  # Let the environment handle the reset
         
+        # NEW: absolute-joint replay path (no deltas, no IK)
+        if getattr(command, "absolute_joints", False) and getattr(command, "joint_targets", None) is not None:
+            q = np.asarray(command.joint_targets, dtype=float)
+
+            try:
+                # Set controller targets to the recorded joints
+                self.entity.control_dofs_position(q[:-1], self.motors_dof)
+
+                # Keep internal pose fields consistent with the applied joints
+                pos, quat = self.get_ee_pose()
+                if pos is not None:
+                    self.target_position = pos.copy()
+                    from scipy.spatial.transform import Rotation as R
+                    rot = R.from_quat(quat)
+                    self.target_orientation = rot.as_euler('xyz')
+                    self.previous_target_position = self.target_position.copy()
+                    self.previous_target_orientation = self.target_orientation.copy()
+            except Exception as e:
+                print(f"Replay joint-target control failed: {e}")
+
+            # Gripper force control still applies
+            if command.gripper_close:
+                self.entity.control_dofs_force(np.array([-1.0]), self.gripper_dof)
+            else:
+                self.entity.control_dofs_force(np.array([1.0]), self.gripper_dof)
+            return
+        
         # Update target pose
         self.target_position = command.position.copy()
         self.target_orientation = command.orientation.copy()

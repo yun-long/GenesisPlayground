@@ -144,21 +144,42 @@ class SO101CubeEnv:
 
     def _randomize_cube(self) -> None:
         """Randomize cube position for new episodes."""
-        cube_pos = (
-            random.uniform(0.2, 0.4),
-            random.uniform(-0.2, 0.2),
-            0.05
-        )
-        cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
-        self.entities["cube"].set_pos(cube_pos)
-        self.entities["cube"].set_quat(cube_quat)
+        # Ensure cube and target are far enough apart to avoid auto-success
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            cube_pos = (
+                random.uniform(0.2, 0.4),
+                random.uniform(-0.2, 0.2),
+                0.05
+            )
+            cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
+            
+            # Set debug sphere to target location (where cube should be placed)
+            target_pos = np.array([
+                random.uniform(0.3, 0.5),  # Different from cube spawn location
+                random.uniform(-0.3, 0.3),
+                0.0  # Always on ground plane
+            ])
+            
+            # Check distance between cube and target (only x,y coordinates)
+            cube_xy = np.array(cube_pos[:2])
+            target_xy = target_pos[:2]
+            distance = np.linalg.norm(cube_xy - target_xy)
+            
+            # Ensure minimum distance of 15cm to avoid auto-success
+            if distance > 0.15:
+                self.entities["cube"].set_pos(cube_pos)
+                self.entities["cube"].set_quat(cube_quat)
+                self.target_location = target_pos
+                self._draw_target_visualization(target_pos)
+                return
         
-        # Set debug sphere to target location (where cube should be placed)
-        target_pos = np.array([
-            random.uniform(0.3, 0.5),  # Different from cube spawn location
-            random.uniform(-0.3, 0.3),
-            0.0  # Always on ground plane
-        ])
+        # Fallback: if we can't find a good position after max_attempts, use fixed positions
+        print("⚠️  Warning: Could not find suitable cube/target positions, using fallback")
+        cube_pos = (0.25, 0.0, 0.05)
+        target_pos = np.array([0.45, 0.0, 0.0])
+        self.entities["cube"].set_pos(cube_pos)
+        self.entities["cube"].set_quat([1, 0, 0, 0])
         self.target_location = target_pos
         self._draw_target_visualization(target_pos)
 
