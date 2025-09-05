@@ -3,6 +3,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation as R
 
 import genesis as gs
@@ -52,15 +53,7 @@ class SO101CubeEnv:
             surface=gs.surfaces.Default(color=(0.5, 1, 0.5)),
         )
 
-        # Target visualization
-        self.entities["target"] = self.scene.add_entity(
-            gs.morphs.Mesh(
-                file="meshes/axis.obj",
-                scale=0.15,
-                collision=False,
-            ),
-            surface=gs.surfaces.Default(color=(1, 0.5, 0.5, 1)),
-        )
+        # Target sphere removed - using Genesis debug sphere instead
 
         # Build scene
         self.scene.build()
@@ -73,18 +66,23 @@ class SO101CubeEnv:
 
         # Store entities for easy access
         self.robot = self.entities["robot"]
+        
+        # Initialize target location (on ground plane)
+        self.target_location = np.array([0.4, 0.0, 0.0])
+        
+        # Track current target point for visualization
+        self.current_target_pos = None
 
     def initialize(self) -> None:
         """Initialize the environment."""
-
+        # Clear any existing debug objects
+        self.scene.clear_debug_objects()
+        
         # Set initial robot pose
         initial_q = np.array([0.0, -0.3, 0.5, 0.0, 0.0, 0.0])
         self.entities["robot"].reset_to_pose(initial_q)
 
-        # Update target visualization
-        self._update_target_visualization()
-
-        # Randomize cube position
+        # Randomize cube position (this will set new target location and draw debug sphere)
         self._randomize_cube()
 
 
@@ -110,12 +108,8 @@ class SO101CubeEnv:
             return None
 
         # Get cube position
-        try:
-            cube_pos = np.array(self.entities["cube"].get_pos())
-            cube_quat = np.array(self.entities["cube"].get_quat())
-        except Exception:
-            cube_pos = np.zeros(3)
-            cube_quat = np.array([1, 0, 0, 0])
+        cube_pos = np.array(self.entities["cube"].get_pos())
+        cube_quat = np.array(self.entities["cube"].get_quat())
 
         # Create observation
         observation = {
@@ -136,51 +130,83 @@ class SO101CubeEnv:
 
     def reset_idx(self, envs_idx: Any) -> None:
         """Reset environment."""
+        # Clear any existing debug objects
+        self.scene.clear_debug_objects()
+        
         # Reset robot to natural pose
         initial_q = np.array([0.0, -0.3, 0.5, 0.0, 0.0, 0.0])
         self.entities["robot"].reset_to_pose(initial_q)
 
-        # Update target visualization
-        self._update_target_visualization()
-
-        # Randomize cube position
+        # Randomize cube position (this will set new target location and draw debug sphere)
         self._randomize_cube()
 
 
-    def _update_target_visualization(self) -> None:
-        """Update target visualization to match robot end-effector."""
-        try:
-            pos, quat = self.entities["robot"].get_ee_pose()
-            if pos is not None and quat is not None:
-                # Ensure we have numpy arrays
-                if isinstance(pos, torch.Tensor):
-                    pos = pos.cpu().numpy()
-                if isinstance(quat, torch.Tensor):
-                    quat = quat.cpu().numpy()
-                self.entities["target"].set_qpos(np.concatenate([pos, quat]))
-        except Exception as e:
-            print(f"Failed to update target visualization: {e}")
 
     def _randomize_cube(self) -> None:
         """Randomize cube position for new episodes."""
-        try:
-            cube_pos = (
-                random.uniform(0.2, 0.4),
-                random.uniform(-0.2, 0.2),
-                0.05
-            )
-            cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
-            self.entities["cube"].set_pos(cube_pos)
-            self.entities["cube"].set_quat(cube_quat)
-        except Exception as e:
-            print(f"Failed to randomize cube: {e}")
+        cube_pos = (
+            random.uniform(0.2, 0.4),
+            random.uniform(-0.2, 0.2),
+            0.05
+        )
+        cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
+        self.entities["cube"].set_pos(cube_pos)
+        self.entities["cube"].set_quat(cube_quat)
+        
+        # Set debug sphere to target location (where cube should be placed)
+        target_pos = np.array([
+            random.uniform(0.3, 0.5),  # Different from cube spawn location
+            random.uniform(-0.3, 0.3),
+            0.0  # Always on ground plane
+        ])
+        self.target_location = target_pos
+        self._draw_target_visualization(target_pos)
+
+    def set_target_location(self, position: NDArray[np.float64]) -> None:
+        """Set the target location for cube placement."""
+        # Ensure z coordinate is always 0 (on ground plane)
+        target_pos = position.copy()
+        target_pos[2] = 0.0
+        self.target_location = target_pos
+        self._draw_target_visualization(target_pos)
+    
+    def _draw_target_visualization(self, position: NDArray[np.float64]) -> None:
+        """Draw the target sphere visualization using Genesis debug sphere."""
+        # Draw debug sphere for the current target point
+        self.scene.draw_debug_sphere(
+            pos=position,
+            radius=0.015,  # Slightly larger for better visibility
+            color=(1, 0, 0, 0.8)  # Red, semi-transparent
+        )
+        
+        # Track the current target position
+        self.current_target_pos = position.copy()
+
+    def _check_success_condition(self) -> None:
+        """Check if cube is placed on target location and reset if successful."""
+        # Get current cube position
+        cube_pos = np.array(self.entities["cube"].get_pos())
+        
+        # Calculate distance between cube and target (only x,y coordinates)
+        cube_xy = cube_pos[:2]
+        target_xy = self.target_location[:2]
+        distance = np.linalg.norm(cube_xy - target_xy)
+        
+        # Success threshold: cube within 5cm of target
+        success_threshold = 0.05
+        
+        if distance < success_threshold:
+            print(f"🎯 SUCCESS! Cube placed on target (distance: {distance:.3f}m)")
+            print("🔄 Resetting scene...")
+            # Reset the scene
+            self.reset_idx(None)
 
 
     def step(self) -> None:
         """Step the simulation."""
-        # Update target visualization to follow robot
-        self._update_target_visualization()
-
+        # Check for success condition (cube placed on target)
+        self._check_success_condition()
+        
         # Step Genesis simulation
         self.scene.step()
 

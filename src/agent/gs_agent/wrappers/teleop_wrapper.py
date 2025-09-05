@@ -3,7 +3,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 import torch
@@ -11,6 +11,15 @@ from numpy.typing import NDArray
 from pynput import keyboard
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
+
+
+# Constants for trajectory management
+TRAJECTORY_DIR = "trajectories"
+TRAJECTORY_FILENAME_PREFIX = "so101_pick_place_"
+TRAJECTORY_FILE_EXTENSION = ".json"
+
+# Type alias for trajectory step data
+TrajectoryStep = dict[str, Any]
 
 
 class TeleopCommand:
@@ -39,18 +48,27 @@ class TeleopWrapper(BaseEnvWrapper):
         device: torch.device = torch.device("cpu"),
         movement_speed: float = 0.01,
         rotation_speed: float = 0.05,
+        replay_steps_per_command: int = 10,
+        viewer_init_delay: float = 2.0,
     ) -> None:
         super().__init__(env, device)
 
         # Movement parameters
         self.movement_speed = movement_speed * 2  # Doubled for faster movement
         self.rotation_speed = rotation_speed * 2  # Doubled for faster movement
+        
+        # Replay parameters
+        self.replay_steps_per_command = replay_steps_per_command
+        self.viewer_init_delay = viewer_init_delay
 
         # Keyboard state
         self.pressed_keys = set()
         self.lock = threading.Lock()
         self.listener = None
         self.running = False
+        
+        # Key press tracking for toggle actions
+        self.last_recording_key_state = False
 
         # Current command state
         self.current_position: NDArray[np.float64] | None = None
@@ -60,8 +78,8 @@ class TeleopWrapper(BaseEnvWrapper):
 
         # Trajectory recording
         self.recording = False
-        self.trajectory_data = []
-        self.recording_start_time = None
+        self.trajectory_data: list[TrajectoryStep] = []
+        self.recording_start_time: float | None = None
 
         # Initialize current pose from environment if available
         if self.env is not None:
@@ -107,7 +125,6 @@ class TeleopWrapper(BaseEnvWrapper):
         print("u - Reset Scene")
         print("space - Press to close gripper, release to open gripper")
         print("r - Start/Stop Recording Trajectory")
-        print("p - Replay Latest Trajectory")
         print("esc - Quit")
 
     def stop(self) -> None:
@@ -169,13 +186,13 @@ class TeleopWrapper(BaseEnvWrapper):
         if self.recording and command is not None:
             self._record_trajectory_step(command, obs)
 
-        # Return standard step format (empty tensors for compatibility)
+        # Return teleop-specific format (rewards/termination not applicable)
         return (
-            torch.tensor([]),          # next_obs
-            torch.tensor([0.0]),       # reward
-            torch.tensor([False]),     # terminated
-            torch.tensor([False]),     # truncated
-            obs                        # extra_infos
+            torch.tensor([]),          # next_obs (not used in teleop)
+            torch.tensor([]),          # reward (not applicable for teleop)
+            torch.tensor([]),          # terminated (not applicable for teleop)
+            torch.tensor([]),          # truncated (not applicable for teleop)
+            obs                        # observations
         )
 
     def get_observations(self) -> torch.Tensor:
@@ -188,36 +205,30 @@ class TeleopWrapper(BaseEnvWrapper):
 
     def _initialize_current_pose(self) -> None:
         """Initialize current pose from environment."""
-        try:
-            env = getattr(self, '_teleop_env', None) or self.env
-            if env is not None:
-                obs = env.get_observation()
-                if obs is not None:
-                    self.current_position = obs['end_effector_pos'].copy()
-                    from scipy.spatial.transform import Rotation as R
-                    quat = obs['end_effector_quat']
-                    rot = R.from_quat(quat)
-                    self.current_orientation = rot.as_euler('xyz')
-        except Exception as e:
-            print(f"Failed to initialize current pose: {e}")
+        env = getattr(self, '_teleop_env', None) or self.env
+        if env is not None:
+            obs = env.get_observation()
+            if obs is not None:
+                self.current_position = obs['end_effector_pos'].copy()
+                from scipy.spatial.transform import Rotation as R
+                quat = obs['end_effector_quat']
+                rot = R.from_quat(quat)
+                self.current_orientation = rot.as_euler('xyz')
             self.current_position = np.array([0.0, 0.0, 0.3])
             self.current_orientation = np.array([0.0, 0.0, 0.0])
 
     # NEW: resync cached pose from the environment’s real EE pose
     def _sync_pose_from_env(self) -> None:
         """Reset teleop's cached pose to the environment's actual EE pose."""
-        try:
-            env = getattr(self, '_teleop_env', None) or self.env
-            if env is None:
-                return
-            obs = env.get_observation()
-            if obs is None:
-                return
-            from scipy.spatial.transform import Rotation as R
-            self.current_position = obs['end_effector_pos'].copy()
-            self.current_orientation = R.from_quat(obs['end_effector_quat']).as_euler('xyz')
-        except Exception as e:
-            print(f"Failed to sync teleop pose: {e}")
+        env = getattr(self, '_teleop_env', None) or self.env
+        if env is None:
+            return
+        obs = env.get_observation()
+        if obs is None:
+            return
+        from scipy.spatial.transform import Rotation as R
+        self.current_position = obs['end_effector_pos'].copy()
+        self.current_orientation = R.from_quat(obs['end_effector_quat']).as_euler('xyz')
 
     def _process_input(self) -> TeleopCommand | None:
         """Process keyboard input and return command."""
@@ -229,7 +240,6 @@ class TeleopWrapper(BaseEnvWrapper):
         reset_scene = keyboard.KeyCode.from_char('u') in pressed_keys
         quit_teleop = keyboard.Key.esc in pressed_keys
         toggle_recording = keyboard.KeyCode.from_char('r') in pressed_keys
-        replay_trajectory = keyboard.KeyCode.from_char('p') in pressed_keys
 
         # Movement keys present?
         movement_keys = {
@@ -246,16 +256,15 @@ class TeleopWrapper(BaseEnvWrapper):
         if self.current_position is None or self.current_orientation is None:
             self._initialize_current_pose()
 
-        # Handle recording toggle
-        if toggle_recording:
+        # Handle recording toggle (only on key press, not while held)
+        current_recording_key_state = keyboard.KeyCode.from_char('r') in pressed_keys
+        if current_recording_key_state and not self.last_recording_key_state:
             if self.recording:
                 self.stop_recording()
             else:
                 self.start_recording()
+        self.last_recording_key_state = current_recording_key_state
 
-        # Handle replay
-        if replay_trajectory:
-            self.replay_latest_trajectory()
 
         # If still missing but special keys exist, send special-only command
         if self.current_position is None or self.current_orientation is None:
@@ -388,6 +397,10 @@ class TeleopWrapper(BaseEnvWrapper):
                 "reset_scene": command.reset_scene,
                 "quit_teleop": command.quit_teleop
             },
+            "target": {
+                "position": command.position.tolist(),  # Target position (same as command for teleop)
+                "orientation": command.orientation.tolist()  # Target orientation (same as command for teleop)
+            },
             "observation": {}
         }
 
@@ -400,6 +413,11 @@ class TeleopWrapper(BaseEnvWrapper):
                     step_data["observation"][key] = value.detach().cpu().numpy().tolist()
                 else:
                     step_data["observation"][key] = value
+        
+        # Add target location (debug sphere position) if available
+        if hasattr(self, '_teleop_env') and self._teleop_env is not None:
+            if hasattr(self._teleop_env, 'target_location'):
+                step_data["target_location"] = self._teleop_env.target_location.tolist()
 
         self.trajectory_data.append(step_data)
 
@@ -409,11 +427,11 @@ class TeleopWrapper(BaseEnvWrapper):
             return
 
         # Create trajectories directory if it doesn't exist
-        os.makedirs("trajectories", exist_ok=True)
+        os.makedirs(TRAJECTORY_DIR, exist_ok=True)
 
         # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"trajectories/so101_pick_place_{timestamp}.json"
+        filename = f"{TRAJECTORY_DIR}/{TRAJECTORY_FILENAME_PREFIX}{timestamp}{TRAJECTORY_FILE_EXTENSION}"
 
         # Prepare trajectory metadata
         trajectory_info = {
@@ -424,19 +442,23 @@ class TeleopWrapper(BaseEnvWrapper):
                 "duration_seconds": self.trajectory_data[-1]["timestamp"] if self.trajectory_data else 0,
                 "num_steps": len(self.trajectory_data),
                 "movement_speed": self.movement_speed,
-                "rotation_speed": self.rotation_speed
+                "rotation_speed": self.rotation_speed,
+                "includes_target_data": True,
+                "data_format": {
+                    "command": "Robot control commands (position, orientation, gripper, etc.)",
+                    "target": "Target positions and orientations for visualization",
+                    "target_location": "Debug sphere position (where cube should be placed for success)",
+                    "observation": "Robot state observations (joint positions, end-effector pose, etc.)"
+                }
             },
             "trajectory": self.trajectory_data
         }
 
-        try:
-            with open(filename, 'w') as f:
-                json.dump(trajectory_info, f, indent=2)
-            print(f"💾 Trajectory saved to: {filename}")
-            print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
-            print(f"   - Steps: {trajectory_info['metadata']['num_steps']}")
-        except Exception as e:
-            print(f"❌ Failed to save trajectory: {e}")
+        with open(filename, 'w') as f:
+            json.dump(trajectory_info, f, indent=2)
+        print(f"💾 Trajectory saved to: {filename}")
+        print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
+        print(f"   - Steps: {trajectory_info['metadata']['num_steps']}")
 
     def replay_latest_trajectory(self) -> None:
         """Replay the most recent trajectory."""
@@ -459,64 +481,60 @@ class TeleopWrapper(BaseEnvWrapper):
             print("❌ No environment set. Call set_environment() first.")
             return
 
-        try:
-            # Load trajectory
-            with open(traj_file_path, 'r') as f:
-                trajectory_info = json.load(f)
+        # Load trajectory
+        with open(traj_file_path, 'r') as f:
+            trajectory_info = json.load(f)
+        
+        trajectory = trajectory_info['trajectory']
+        print(f"🎬 Replaying trajectory: {traj_file_path}")
+        print(f"   - Steps: {len(trajectory)}")
+        print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
+        print(f"   - Task: {trajectory_info['metadata']['task']}")
+        
+        # Reset environment to initial state
+        print("🔄 Resetting environment...")
+        self._teleop_env.reset_idx(None)
+        
+        # Wait for viewer to be ready
+        print("⏳ Waiting for viewer to be ready...")
+        time.sleep(self.viewer_init_delay)  # Configurable pause for viewer initialization
+        
+        # Replay each step
+        for i, step_data in enumerate(trajectory):
+            # Create command from step data
+            command = TeleopCommand(
+                position=np.array(step_data['command']['position']),
+                orientation=np.array(step_data['command']['orientation']),
+                gripper_close=step_data['command']['gripper_close'],
+                reset_scene=step_data['command']['reset_scene'],
+                quit_teleop=step_data['command']['quit_teleop']
+            )
             
-            trajectory = trajectory_info['trajectory']
-            print(f"🎬 Replaying trajectory: {traj_file_path}")
-            print(f"   - Steps: {len(trajectory)}")
-            print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
-            print(f"   - Task: {trajectory_info['metadata']['task']}")
+            # Apply command to environment
+            self._teleop_env.apply_command(command)
             
-            # Reset environment to initial state
-            print("🔄 Resetting environment...")
-            self._teleop_env.reset_idx(None)
+            # Step the environment multiple times to keep viewer active
+            for _ in range(self.replay_steps_per_command):  # Configurable steps per command for smooth visualization
+                self._teleop_env.step()
+                time.sleep(0.02)  # 20ms between simulation steps
             
-            # Wait for viewer to be ready
-            print("⏳ Waiting for viewer to be ready...")
-            print("👀 Look for the Genesis viewer window - it should show the robot and cube!")
-            time.sleep(2.0)  # 2 second pause for viewer initialization
             
-            # Replay each step
-            for i, step_data in enumerate(trajectory):
-                # Create command from step data
-                command = TeleopCommand(
-                    position=np.array(step_data['command']['position']),
-                    orientation=np.array(step_data['command']['orientation']),
-                    gripper_close=step_data['command']['gripper_close'],
-                    reset_scene=step_data['command']['reset_scene'],
-                    quit_teleop=step_data['command']['quit_teleop']
-                )
-                
-                # Apply command to environment
-                self._teleop_env.apply_command(command)
-                
-                # Step the environment multiple times to keep viewer active
-                for _ in range(10):  # Step 10 times per command for smooth visualization
-                    self._teleop_env.step()
-                    time.sleep(0.02)  # 20ms between simulation steps
-                
-                # Print progress every 10% of trajectory
-                if (i + 1) % max(1, len(trajectory) // 10) == 0:
-                    progress = (i + 1) / len(trajectory) * 100
-                    print(f"   Progress: {progress:.0f}% ({i + 1}/{len(trajectory)} steps)")
-            
-            print("✅ Trajectory replay completed!")
-            
-        except Exception as e:
-            print(f"❌ Failed to replay trajectory: {e}")
+            # Print progress every 10% of trajectory
+            if (i + 1) % max(1, len(trajectory) // 10) == 0:
+                progress = (i + 1) / len(trajectory) * 100
+                print(f"   Progress: {progress:.0f}% ({i + 1}/{len(trajectory)} steps)")
+        
+        print("✅ Trajectory replay completed!")
 
     def list_trajectories(self) -> list[str]:
         """List all available trajectory files."""
-        if not os.path.exists("trajectories"):
+        if not os.path.exists(TRAJECTORY_DIR):
             return []
         
         trajectory_files = []
-        for filename in os.listdir("trajectories"):
-            if filename.startswith("so101_pick_place_") and filename.endswith(".json"):
-                filepath = os.path.join("trajectories", filename)
+        for filename in os.listdir(TRAJECTORY_DIR):
+            if filename.startswith(TRAJECTORY_FILENAME_PREFIX) and filename.endswith(TRAJECTORY_FILE_EXTENSION):
+                filepath = os.path.join(TRAJECTORY_DIR, filename)
                 trajectory_files.append(filepath)
         
         # Sort by modification time (newest first)
