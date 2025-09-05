@@ -7,28 +7,28 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation as R
 
 import genesis as gs
+from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.robots.so101_robot import SO101Robot
 
 
-class SO101CubeEnv:
+class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
     """SO101 robot environment with cube manipulation task."""
 
     def __init__(self) -> None:
+        FPS = 60
         # Create Genesis scene
         self.scene = gs.Scene(
-            sim_options=gs.options.SimOptions(substeps=4),
+            sim_options=gs.options.SimOptions(
+                substeps=1,
+                dt=1/FPS,
+            ),
             rigid_options=gs.options.RigidOptions(
-                enable_joint_limit=True,
-                enable_collision=True,
-                gravity=(0, 0, -9.8),
-                box_box_detection=True,
-                constraint_timeconst=0.02,
             ),
             viewer_options=gs.options.ViewerOptions(
                 camera_pos=(1.5, 0.0, 0.7),
                 camera_lookat=(0.2, 0.0, 0.1),
                 camera_fov=50,
-                max_FPS=60,
+                max_FPS=200,
             ),
             show_viewer=True,  # Enable viewer for visualization
             show_FPS=False,
@@ -45,12 +45,10 @@ class SO101CubeEnv:
 
         # Interactive cube
         self.entities["cube"] = self.scene.add_entity(
-            material=gs.materials.Rigid(rho=300),
             morph=gs.morphs.Box(
                 pos=(0.5, 0.0, 0.07),
                 size=(0.04, 0.04, 0.04),
             ),
-            surface=gs.surfaces.Default(color=(0.5, 1, 0.5)),
         )
 
         # Target sphere removed - using Genesis debug sphere instead

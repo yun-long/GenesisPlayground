@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from pynput import keyboard
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
+from gs_env.common.bases.base_env import BaseEnv
 
 
 # Constants for trajectory management
@@ -51,7 +52,7 @@ class TeleopWrapper(BaseEnvWrapper):
     """Teleop wrapper that follows the GenesisEnvWrapper pattern."""
     def __init__(
         self,
-        env: Any | None = None,
+        env: Any,
         device: torch.device = torch.device("cpu"),
         movement_speed: float = 0.01,
         rotation_speed: float = 0.05,
@@ -92,12 +93,6 @@ class TeleopWrapper(BaseEnvWrapper):
         # Initialize current pose from environment if available
         if self.env is not None:
             self._initialize_current_pose()
-
-    def set_environment(self, env: Any) -> None:
-        """Set the environment after creation."""
-        self._teleop_env = env
-        self._teleop_env.initialize()
-        self._initialize_current_pose()
 
     def start(self) -> None:
         """Start keyboard listener."""
@@ -145,13 +140,9 @@ class TeleopWrapper(BaseEnvWrapper):
 
     def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
         """Reset the environment."""
-        if hasattr(self, '_teleop_env') and self._teleop_env is not None:
-            self._teleop_env.reset_idx(None)
-            obs = self._teleop_env.get_observation()
-            if obs is None:
-                obs = {}
-            return torch.tensor([]), obs
-        return torch.tensor([]), {}
+        self.env.reset_idx(None)
+        obs = self.env.get_observation() or {}
+        return torch.tensor([]), obs
 
     def step(self, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
         """Step the environment with teleop input."""
@@ -159,8 +150,8 @@ class TeleopWrapper(BaseEnvWrapper):
         command = self._process_input()
 
         # Apply command to environment
-        if command and hasattr(self, '_teleop_env') and self._teleop_env is not None:
-            self._teleop_env.apply_command(command)
+        if command:
+            self.env.apply_command(command)
             self.last_command = command
 
             # If reset command was sent, mark for pose reinitialization in next step
@@ -175,9 +166,7 @@ class TeleopWrapper(BaseEnvWrapper):
                 with self.lock:
                     self.pressed_keys.clear()
 
-        # Step the environment
-        if hasattr(self, '_teleop_env') and self._teleop_env is not None:
-            self._teleop_env.step()
+        self.env.step()
 
         # CHANGED: after a reset, sync cached pose from the actual env pose
         if self.pending_reset:
@@ -185,12 +174,7 @@ class TeleopWrapper(BaseEnvWrapper):
             self.pending_reset = False
 
         # Get observations
-        if hasattr(self, '_teleop_env') and self._teleop_env is not None:
-            obs = self._teleop_env.get_observation()
-            if obs is None:
-                obs = {}
-        else:
-            obs = {}
+        obs = self.env.get_observation() or {}
 
         # Record trajectory data if recording
         if self.recording and command is not None:

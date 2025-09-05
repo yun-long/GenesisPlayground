@@ -12,7 +12,7 @@ Usage:
 """
 
 from gs_agent.wrappers.teleop_wrapper import TeleopWrapper
-from gs_env.sim.envs.so101_cube_env import SO101CubeEnv
+from gs_env.sim.envs.manipulation.so101_cube_env import SO101CubeEnv
 
 import time
 
@@ -37,22 +37,15 @@ def main() -> None:
     try:
         # Create teleop wrapper first (without environment)
         print("Creating teleop wrapper...")
+        env = SO101CubeEnv()
         teleop_wrapper = TeleopWrapper(
-            env=None,
+            env=env,
             device=torch.device("cpu"),
             movement_speed=0.01,  # Position movement speed
             rotation_speed=0.05   # Rotation speed
         )
-
-        # Start teleop wrapper (keyboard listener) FIRST, before creating Genesis scene
         teleop_wrapper.start()
 
-        # Create task environment AFTER teleop wrapper is running
-        print("Creating SO101 cube environment...")
-        env = SO101CubeEnv()
-
-        # Set the environment in the teleop wrapper (it will initialize automatically)
-        teleop_wrapper.set_environment(env)
 
         print("Environment initialized successfully.")
 
@@ -63,14 +56,18 @@ def main() -> None:
         # Run the main control loop in the main thread (Genesis viewer requires this)
         try:
             step_count = 0
+            start_time = time.time()
+            N_PRINT = 100
             while teleop_wrapper.running:
                 # Step the teleop wrapper (this processes input and steps environment)
                 teleop_wrapper.step(torch.tensor([]))
                 step_count += 1
 
                 # Print status every 1000 steps
-                if step_count % 1000 == 0:
-                    print(f"Running... Step {step_count}")
+                if step_count % N_PRINT == 0:
+                    FPS = N_PRINT / (time.time() - start_time)
+                    gs.logger.info(f"Running... Step {step_count}, FPS: {FPS}")
+                    start_time = time.time()
 
                 # Check for quit command
                 if (teleop_wrapper.last_command and 
@@ -83,9 +80,6 @@ def main() -> None:
                 if step_count > 180000:  # 1 hour at 50Hz
                     print("Maximum runtime reached, exiting...")
                     break
-
-                # Small delay to control simulation frequency
-                time.sleep(0.02)  # 50 Hz
 
         except KeyboardInterrupt:
             print("\nInterrupted by user (Ctrl+C)")
