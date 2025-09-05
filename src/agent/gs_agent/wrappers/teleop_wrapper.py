@@ -1,5 +1,8 @@
+import json
+import os
 import threading
 import time
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -55,6 +58,11 @@ class TeleopWrapper(BaseEnvWrapper):
         self.last_command: TeleopCommand | None = None
         self.pending_reset: bool = False
 
+        # Trajectory recording
+        self.recording = False
+        self.trajectory_data = []
+        self.recording_start_time = None
+
         # Initialize current pose from environment if available
         if self.env is not None:
             self._initialize_current_pose()
@@ -98,11 +106,15 @@ class TeleopWrapper(BaseEnvWrapper):
         print("k - Rotate Clockwise")
         print("u - Reset Scene")
         print("space - Press to close gripper, release to open gripper")
+        print("r - Start/Stop Recording Trajectory")
+        print("p - Replay Latest Trajectory")
         print("esc - Quit")
 
     def stop(self) -> None:
         """Stop keyboard listener."""
         self.running = False
+        if self.recording:
+            self.stop_recording()
         if self.listener:
             self.listener.stop()
 
@@ -129,6 +141,9 @@ class TeleopWrapper(BaseEnvWrapper):
             # If reset command was sent, mark for pose reinitialization in next step
             if command.reset_scene:
                 self.pending_reset = True
+                # Stop recording when scene resets
+                if self.recording:
+                    self.stop_recording()
                 # NEW: prevent immediate follow-up movement from any stuck keys
                 with self.lock:
                     self.pressed_keys.clear()
@@ -149,6 +164,10 @@ class TeleopWrapper(BaseEnvWrapper):
                 obs = {}
         else:
             obs = {}
+
+        # Record trajectory data if recording
+        if self.recording and command is not None:
+            self._record_trajectory_step(command, obs)
 
         # Return standard step format (empty tensors for compatibility)
         return (
@@ -209,6 +228,8 @@ class TeleopWrapper(BaseEnvWrapper):
         gripper_close = keyboard.Key.space in pressed_keys
         reset_scene = keyboard.KeyCode.from_char('u') in pressed_keys
         quit_teleop = keyboard.Key.esc in pressed_keys
+        toggle_recording = keyboard.KeyCode.from_char('r') in pressed_keys
+        replay_trajectory = keyboard.KeyCode.from_char('p') in pressed_keys
 
         # Movement keys present?
         movement_keys = {
@@ -224,6 +245,17 @@ class TeleopWrapper(BaseEnvWrapper):
         # Initialize current pose if missing
         if self.current_position is None or self.current_orientation is None:
             self._initialize_current_pose()
+
+        # Handle recording toggle
+        if toggle_recording:
+            if self.recording:
+                self.stop_recording()
+            else:
+                self.start_recording()
+
+        # Handle replay
+        if replay_trajectory:
+            self.replay_latest_trajectory()
 
         # If still missing but special keys exist, send special-only command
         if self.current_position is None or self.current_orientation is None:
@@ -319,3 +351,174 @@ class TeleopWrapper(BaseEnvWrapper):
     def render(self) -> None:
         """Render the environment."""
         pass
+
+    def start_recording(self) -> None:
+        """Start recording trajectory data."""
+        if not self.recording:
+            self.recording = True
+            self.trajectory_data = []
+            self.recording_start_time = time.time()
+            print("🎬 Started recording trajectory...")
+
+    def stop_recording(self) -> None:
+        """Stop recording and save trajectory to disk."""
+        if self.recording:
+            self.recording = False
+            if self.trajectory_data:
+                self._save_trajectory()
+            else:
+                print("No trajectory data to save.")
+            self.trajectory_data = []
+            self.recording_start_time = None
+
+    def _record_trajectory_step(self, command: TeleopCommand, obs: dict[str, Any]) -> None:
+        """Record a single step of trajectory data."""
+        if not self.recording:
+            return
+
+        timestamp = time.time() - (self.recording_start_time or 0)
+        
+        # Extract relevant data
+        step_data = {
+            "timestamp": timestamp,
+            "command": {
+                "position": command.position.tolist(),
+                "orientation": command.orientation.tolist(),
+                "gripper_close": command.gripper_close,
+                "reset_scene": command.reset_scene,
+                "quit_teleop": command.quit_teleop
+            },
+            "observation": {}
+        }
+
+        # Add observation data if available
+        if obs:
+            for key, value in obs.items():
+                if isinstance(value, np.ndarray):
+                    step_data["observation"][key] = value.tolist()
+                elif isinstance(value, torch.Tensor):
+                    step_data["observation"][key] = value.detach().cpu().numpy().tolist()
+                else:
+                    step_data["observation"][key] = value
+
+        self.trajectory_data.append(step_data)
+
+    def _save_trajectory(self) -> None:
+        """Save trajectory data to disk."""
+        if not self.trajectory_data:
+            return
+
+        # Create trajectories directory if it doesn't exist
+        os.makedirs("trajectories", exist_ok=True)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"trajectories/so101_pick_place_{timestamp}.json"
+
+        # Prepare trajectory metadata
+        trajectory_info = {
+            "metadata": {
+                "robot": "SO101",
+                "task": "pick_and_place",
+                "recording_date": datetime.now().isoformat(),
+                "duration_seconds": self.trajectory_data[-1]["timestamp"] if self.trajectory_data else 0,
+                "num_steps": len(self.trajectory_data),
+                "movement_speed": self.movement_speed,
+                "rotation_speed": self.rotation_speed
+            },
+            "trajectory": self.trajectory_data
+        }
+
+        try:
+            with open(filename, 'w') as f:
+                json.dump(trajectory_info, f, indent=2)
+            print(f"💾 Trajectory saved to: {filename}")
+            print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
+            print(f"   - Steps: {trajectory_info['metadata']['num_steps']}")
+        except Exception as e:
+            print(f"❌ Failed to save trajectory: {e}")
+
+    def replay_latest_trajectory(self) -> None:
+        """Replay the most recent trajectory."""
+        trajectories = self.list_trajectories()
+        if not trajectories:
+            print("❌ No trajectory files found. Record a trajectory first with 'r'.")
+            return
+        
+        latest_trajectory = trajectories[0]
+        print(f"🎬 Replaying latest trajectory: {os.path.basename(latest_trajectory)}")
+        self.replay(latest_trajectory)
+
+    def replay(self, traj_file_path: str) -> None:
+        """Replay a trajectory from a saved file."""
+        if not os.path.exists(traj_file_path):
+            print(f"❌ Trajectory file not found: {traj_file_path}")
+            return
+
+        if not hasattr(self, '_teleop_env') or self._teleop_env is None:
+            print("❌ No environment set. Call set_environment() first.")
+            return
+
+        try:
+            # Load trajectory
+            with open(traj_file_path, 'r') as f:
+                trajectory_info = json.load(f)
+            
+            trajectory = trajectory_info['trajectory']
+            print(f"🎬 Replaying trajectory: {traj_file_path}")
+            print(f"   - Steps: {len(trajectory)}")
+            print(f"   - Duration: {trajectory_info['metadata']['duration_seconds']:.2f}s")
+            print(f"   - Task: {trajectory_info['metadata']['task']}")
+            
+            # Reset environment to initial state
+            print("🔄 Resetting environment...")
+            self._teleop_env.reset_idx(None)
+            
+            # Wait for viewer to be ready
+            print("⏳ Waiting for viewer to be ready...")
+            print("👀 Look for the Genesis viewer window - it should show the robot and cube!")
+            time.sleep(2.0)  # 2 second pause for viewer initialization
+            
+            # Replay each step
+            for i, step_data in enumerate(trajectory):
+                # Create command from step data
+                command = TeleopCommand(
+                    position=np.array(step_data['command']['position']),
+                    orientation=np.array(step_data['command']['orientation']),
+                    gripper_close=step_data['command']['gripper_close'],
+                    reset_scene=step_data['command']['reset_scene'],
+                    quit_teleop=step_data['command']['quit_teleop']
+                )
+                
+                # Apply command to environment
+                self._teleop_env.apply_command(command)
+                
+                # Step the environment multiple times to keep viewer active
+                for _ in range(10):  # Step 10 times per command for smooth visualization
+                    self._teleop_env.step()
+                    time.sleep(0.02)  # 20ms between simulation steps
+                
+                # Print progress every 10% of trajectory
+                if (i + 1) % max(1, len(trajectory) // 10) == 0:
+                    progress = (i + 1) / len(trajectory) * 100
+                    print(f"   Progress: {progress:.0f}% ({i + 1}/{len(trajectory)} steps)")
+            
+            print("✅ Trajectory replay completed!")
+            
+        except Exception as e:
+            print(f"❌ Failed to replay trajectory: {e}")
+
+    def list_trajectories(self) -> list[str]:
+        """List all available trajectory files."""
+        if not os.path.exists("trajectories"):
+            return []
+        
+        trajectory_files = []
+        for filename in os.listdir("trajectories"):
+            if filename.startswith("so101_pick_place_") and filename.endswith(".json"):
+                filepath = os.path.join("trajectories", filename)
+                trajectory_files.append(filepath)
+        
+        # Sort by modification time (newest first)
+        trajectory_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        return trajectory_files
