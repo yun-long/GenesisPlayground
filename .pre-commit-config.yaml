@@ -17,9 +17,6 @@ repos:
       - id: uv-lock
         name: uv-lock (.)
         args: [--project, .]
-      - id: uv-lock
-        name: uv-lock (./third_party/simpler_env)
-        args: [--project, ./third_party/simpler_env]
   - repo: https://github.com/google/yamlfmt
     rev: v0.16.0
     hooks:
