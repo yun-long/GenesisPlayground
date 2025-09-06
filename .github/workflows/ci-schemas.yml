@@ -1,0 +1,37 @@
+name: CI (gs-schemas)
+on:
+  push:
+    paths:
+      - "src/schemas/**"
+      - ".github/workflows/ci-schemas.yml"
+  pull_request:
+    paths:
+      - "src/schemas/**"
+      - ".github/workflows/ci-schemas.yml"
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/schemas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Create venv
+        run: uv venv
+
+      - name: Install package (editable) + dev tools
+        run: |
+          uv pip install -e .
+          uv pip install pytest ruff pyright
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Pyright (type check)
+        run: uv run pyright -p .
+
+      - name: Tests
+        run: uv run pytest -q

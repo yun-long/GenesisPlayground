@@ -1,0 +1,43 @@
+name: CI (gs-agent)
+on:
+  push:
+    paths:
+      - "src/agent/**"
+      - "src/env/**"                    # rebuild if dependency changed
+      - "src/schemas/**"
+      - ".github/workflows/ci-agent.yml"
+  pull_request:
+    paths:
+      - "src/agent/**"
+      - "src/env/**"
+      - "src/schemas/**"
+      - ".github/workflows/ci-agent.yml"
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Create venv
+        run: uv venv
+
+      - name: Install packages (editable) + dev tools
+        run: |
+          uv pip install -e ../schemas
+          uv pip install -e ../env
+          uv pip install -e .
+          uv pip install pytest ruff pyright
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Pyright (type check)
+        run: uv run pyright -p .
+
+      - name: Tests
+        run: uv run pytest -q

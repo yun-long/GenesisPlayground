@@ -1,0 +1,41 @@
+name: CI (gs-env)
+on:
+  push:
+    paths:
+      - "src/env/**"
+      - "src/schemas/**"                # rebuild if dependency changed
+      - ".github/workflows/ci-env.yml"
+  pull_request:
+    paths:
+      - "src/env/**"
+      - "src/schemas/**"
+      - ".github/workflows/ci-env.yml"
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/env
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Create venv
+        run: uv venv
+
+      - name: Install packages (editable) + dev tools
+        run: |
+          # install dependency first, then this package
+          uv pip install -e ../schemas
+          uv pip install -e .
+          uv pip install pytest ruff pyright
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Pyright (type check)
+        run: uv run pyright -p .
+
+      - name: Tests
+        run: uv run pytest -q
