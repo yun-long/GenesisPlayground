@@ -1,0 +1,88 @@
+name: Python package (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string            # e.g. "ubuntu-24.04"
+      package_dir:
+        required: true
+        type: string            # e.g. "src/schemas"
+      package_name:
+        required: true
+        type: string            # one of: "gs-schemas" | "gs-env" | "gs-agent"
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  UV_LINK_MODE: copy
+
+jobs:
+  build-test:
+    runs-on: ${{ inputs.os }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.package_dir }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Cache venv & uv wheels
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ inputs.package_dir }}/.venv
+            ~/.cache/uv
+          key: >-
+            ${{ runner.os }}-py312-${{ inputs.package_name }}-
+            ${{ hashFiles('uv.lock', 'pyproject.toml', 'src/**/pyproject.toml') }}
+
+      - name: Create venv (in package dir)
+        run: uv venv --python 3.12
+
+      - name: Preinstall build backend
+        run: uv pip install hatchling
+
+      # Install local deps in editable mode (no build isolation)
+      - name: Install local dependencies (editable)
+        shell: bash
+        run: |
+          set -eux
+          pkg="${{ inputs.package_name }}"
+          if [[ "$pkg" == "gs-schemas" ]]; then
+            uv pip install -e . --no-build-isolation
+          elif [[ "$pkg" == "gs-env" ]]; then
+            pushd ../schemas
+            uv pip install -e . --no-build-isolation
+            popd
+            uv pip install -e . --no-build-isolation
+          elif [[ "$pkg" == "gs-agent" ]]; then
+            pushd ../schemas
+            uv pip install -e . --no-build-isolation
+            popd
+            pushd ../env
+            uv pip install -e . --no-build-isolation
+            popd
+            uv pip install -e . --no-build-isolation
+          else
+            echo "Unknown package ${pkg}" >&2
+            exit 2
+          fi
+
+      - name: Install dev tools
+        run: uv pip install pytest ruff pyright
+
+      - name: Ruff (lint)
+        run: uvx ruff check . --output-format=github
+
+      - name: Pyright (type check)
+        run: uvx pyright -p .
+
+      # Allow exit code 5 (no tests collected)
+      - name: Pytest
+        run: uv run python -m pytest -q || ([ $? -eq 5 ] && exit 0)

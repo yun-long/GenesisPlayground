@@ -15,30 +15,10 @@ on:
       - ".github/workflows/ci-schemas.yml"
 
 jobs:
-  build-test:
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: src/schemas
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-
-      - name: Cache venv & uv wheels
-        uses: actions/cache@v4
-        with:
-          path: |
-            src/schemas/.venv
-            ~/.cache/uv
-          key: ${{ runner.os }}-py312-schemas-${{ hashFiles('uv.lock', 'src/schemas/pyproject.toml') }}
-
-      - run: uv venv --python 3.12
-      - run: uv pip install hatchling
-      - run: uv pip install -e . --no-build-isolation
-      - run: uv pip install pytest ruff pyright
-
-      - run: uvx ruff check . --output-format=github
-      - run: uvx pyright -p .
-      - run: uv run python -m pytest -q || ([ $? -eq 5 ] && exit 0)
-q
+  schemas:
+    uses: ./.github/workflows/python-package.yml
+    with:
+      os: ubuntu-24.04
+      package_dir: src/schemas
+      package_name: gs-schemas
+    secrets: inherit
