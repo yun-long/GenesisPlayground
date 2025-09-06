@@ -1,11 +1,11 @@
-# [project]
-# name = "genesis-playground"
-# # version comes from [tool.hatch.version]; don't set [project].version
-# description = "Playground for building intelligent robots"
-# readme = "README.md"
-# requires-python = ">=3.10"
-# license = { text = "MIT" }
-# dynamic = ["version"]
+[project]
+name = "genesis-playground"
+# version comes from [tool.hatch.version]; don't set [project].version
+description = "Playground for building intelligent robots"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dynamic = ["version"]
 
 # Root meta-package pulls in the three subpackages released together
 dependencies = [
