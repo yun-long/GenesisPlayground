@@ -57,18 +57,11 @@ def main() -> None:
         # Run the main control loop in the main thread (Genesis viewer requires this)
         try:
             step_count = 0
-            start_time = time.time()
-            N_PRINT = 100
             while teleop_wrapper.running:
                 # Step the teleop wrapper (this processes input and steps environment)
                 teleop_wrapper.step(torch.tensor([]))
                 step_count += 1
 
-                # Print status every 1000 steps
-                if step_count % N_PRINT == 0:
-                    FPS = N_PRINT / (time.time() - start_time)
-                    print(f"Running... Step {step_count}, FPS: {FPS:.1f}")
-                    start_time = time.time()
 
                 # Check for quit command
                 if (teleop_wrapper.last_command and 
