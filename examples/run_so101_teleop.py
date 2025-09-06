@@ -12,7 +12,7 @@ Usage:
 """
 
 from gs_agent.wrappers.teleop_wrapper import TeleopWrapper
-from gs_env.sim.envs.so101_cube_env import SO101CubeEnv
+from gs_env.sim.envs.manipulation.so101_cube_env import SO101CubeEnv
 
 import time
 
@@ -43,16 +43,10 @@ def main() -> None:
             movement_speed=0.01,  # Position movement speed
             rotation_speed=0.05   # Rotation speed
         )
-
-        # Start teleop wrapper (keyboard listener) FIRST, before creating Genesis scene
         teleop_wrapper.start()
-
-        # Create task environment AFTER teleop wrapper is running
-        print("Creating SO101 cube environment...")
         env = SO101CubeEnv()
-
-        # Set the environment in the teleop wrapper (it will initialize automatically)
         teleop_wrapper.set_environment(env)
+
 
         print("Environment initialized successfully.")
 
@@ -68,9 +62,6 @@ def main() -> None:
                 teleop_wrapper.step(torch.tensor([]))
                 step_count += 1
 
-                # Print status every 1000 steps
-                if step_count % 1000 == 0:
-                    print(f"Running... Step {step_count}")
 
                 # Check for quit command
                 if (teleop_wrapper.last_command and 
@@ -83,9 +74,6 @@ def main() -> None:
                 if step_count > 180000:  # 1 hour at 50Hz
                     print("Maximum runtime reached, exiting...")
                     break
-
-                # Small delay to control simulation frequency
-                time.sleep(0.02)  # 50 Hz
 
         except KeyboardInterrupt:
             print("\nInterrupted by user (Ctrl+C)")
