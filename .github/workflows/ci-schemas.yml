@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --dev --no-build
 
       - name: Run ruff linting on gs-schemas
         run: uv run ruff check src/schemas/
