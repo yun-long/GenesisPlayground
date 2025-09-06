@@ -7,7 +7,7 @@ import time
 import genesis as gs
 
 from gs_agent.wrappers.teleop_wrapper import TeleopWrapper
-from gs_env.sim.envs.so101_cube_env import SO101CubeEnv
+from gs_env.sim.envs.manipulation.so101_cube_env import SO101CubeEnv
 
 
 def main():
@@ -24,11 +24,7 @@ def main():
     print("Genesis initialized successfully.")
 
     # Create teleop wrapper and environment
-    teleop_wrapper = TeleopWrapper()
-    env = SO101CubeEnv()
-
-    # Set the environment in the wrapper
-    teleop_wrapper.set_environment(env)
+    teleop_wrapper = TeleopWrapper(env=SO101CubeEnv())
 
     # Replay the other trajectory (earlier one)
     teleop_wrapper.replay_latest_trajectory()
