@@ -1,30 +1,30 @@
-name: CI - gs-agent
+name: CI - gs-env
 
 on:
   push:
     branches: [ main, develop ]
     paths:
-      - 'src/agent/**'
+      - 'src/env/**'
       - 'src/schemas/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      - '.github/workflows/ci-agent.yml'
+      - '.github/workflows/ci-env.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'src/agent/**'
+      - 'src/env/**'
       - 'src/schemas/**'
       - 'pyproject.toml'
       - 'uv.lock'
-      - '.github/workflows/ci-agent.yml'
+      - '.github/workflows/ci-env.yml'
 
 env:
   UV_CACHE_DIR: ~/.cache/uv
 
 jobs:
-  # Lint and type check gs-agent
+  # Lint and type check gs-env
   lint-and-typecheck:
-    name: Lint and Type Check gs-agent
+    name: Lint and Type Check gs-env
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -44,23 +44,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-agent-${{ hashFiles('**/uv.lock') }}
+          key: ${{ runner.os }}-uv-env-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-uv-agent-
+            ${{ runner.os }}-uv-env-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run ruff linting on gs-agent
-        run: uv run ruff check src/agent/
+      - name: Run ruff linting on gs-env
+        run: uv run ruff check src/env/
 
-      - name: Run ruff formatting check on gs-agent
-        run: uv run ruff format --check src/agent/
+      - name: Run ruff formatting check on gs-env
+        run: uv run ruff format --check src/env/
 
-      - name: Run pyright type checking on gs-agent
+      - name: Run pyright type checking on gs-env
         run: |
-          cd src/agent
+          cd src/env
           uv run pyright
 
   # Test on multiple Python versions
@@ -88,18 +88,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-agent-${{ matrix.python-version }}-${{ hashFiles('**/uv.lock') }}
+          key: ${{ runner.os }}-uv-env-${{ matrix.python-version }}-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-uv-agent-${{ matrix.python-version }}-
-            ${{ runner.os }}-uv-agent-
+            ${{ runner.os }}-uv-env-${{ matrix.python-version }}-
+            ${{ runner.os }}-uv-env-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run pyright type checking on gs-agent
+      - name: Run pyright type checking on gs-env
         run: |
-          cd src/agent
+          cd src/env
           uv run pyright
 
   # Test on different platforms
@@ -127,22 +127,22 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-agent-${{ hashFiles('**/uv.lock') }}
+          key: ${{ runner.os }}-uv-env-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-uv-agent-
+            ${{ runner.os }}-uv-env-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run pyright type checking on gs-agent
+      - name: Run pyright type checking on gs-env
         run: |
-          cd src/agent
+          cd src/env
           uv run pyright
 
-  # Build and validate gs-agent package
+  # Build and validate gs-env package
   build:
-    name: Build gs-agent
+    name: Build gs-env
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, typecheck-matrix, typecheck-platforms]
     steps:
@@ -163,34 +163,34 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-agent-${{ hashFiles('**/uv.lock') }}
+          key: ${{ runner.os }}-uv-env-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-uv-agent-
+            ${{ runner.os }}-uv-env-
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Build gs-agent package
+      - name: Build gs-env package
         run: |
-          cd src/agent
+          cd src/env
           uv build
 
       - name: Validate package structure
         run: |
           # Check that built package exists
-          ls -la src/agent/dist/
+          ls -la src/env/dist/
           # Validate package metadata
           uv run python -c "
           import tomllib
-          with open('src/agent/pyproject.toml', 'rb') as f:
+          with open('src/env/pyproject.toml', 'rb') as f:
               config = tomllib.load(f)
-          print('gs-agent package config:', config['project']['name'])
+          print('gs-env package config:', config['project']['name'])
           "
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gs-agent-dist
-          path: src/agent/dist/
+          name: gs-env-dist
+          path: src/env/dist/
           retention-days: 7
