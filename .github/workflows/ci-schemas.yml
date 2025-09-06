@@ -48,7 +48,9 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Install dependencies
-        run: uv sync --dev --no-build
+        run: |
+          # Install only the workspace packages, skip the root meta-package
+          uv sync --dev --package gs-schemas
 
       - name: Run ruff linting on gs-schemas
         run: uv run ruff check src/schemas/

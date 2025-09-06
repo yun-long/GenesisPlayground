@@ -14,9 +14,10 @@ dependencies = [
   "gs-agent>=0.0.1,<0.1",
 ]
 
-[build-system]
-requires = ["hatchling>=1.25"]
-build-backend = "hatchling.build"
+# Root package is a meta-package, not buildable
+# [build-system]
+# requires = ["hatchling>=1.25"]
+# build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "regex"
@@ -98,6 +99,9 @@ members = [
   "src/agent",
   "src/schemas",
 ]
+
+[tool.uv.workspace.dependencies]
+# Root package is a meta-package, not buildable
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
