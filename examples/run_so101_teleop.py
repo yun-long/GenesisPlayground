@@ -66,7 +66,7 @@ def main() -> None:
                 # Print status every 1000 steps
                 if step_count % N_PRINT == 0:
                     FPS = N_PRINT / (time.time() - start_time)
-                    gs.logger.info(f"Running... Step {step_count}, FPS: {FPS}")
+                    print(f"Running... Step {step_count}, FPS: {FPS:.1f}")
                     start_time = time.time()
 
                 # Check for quit command

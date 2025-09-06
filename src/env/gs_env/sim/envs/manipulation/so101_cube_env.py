@@ -84,6 +84,11 @@ class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
         self._randomize_cube()
 
 
+    def apply_action(self, action: torch.Tensor) -> None:
+        """Apply action to the environment (BaseEnv requirement)."""
+        # This is called by the BaseEnv interface, but we use apply_command for teleop
+        pass
+
     def apply_command(self, command: Any) -> None:
         """Apply command to the environment."""
         self.last_command = command
@@ -93,9 +98,12 @@ class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
 
         # Handle special commands
         if command.reset_scene:
-            self.reset_idx(None)
+            self.reset_idx(torch.IntTensor([0]))
         elif command.quit_teleop:
             print("Quit command received from teleop")
+        
+        # Step the scene after applying command (like goal_reaching_env)
+        self.scene.step()
 
 
     def get_observation(self) -> dict[str, Any] | None:
