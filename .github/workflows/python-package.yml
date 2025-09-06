@@ -1,3 +1,4 @@
+# .github/workflows/python-package.yml
 name: Python package (reusable)
 
 on:
@@ -5,13 +6,13 @@ on:
     inputs:
       os:
         required: true
-        type: string            # e.g. "ubuntu-24.04"
+        type: string
       package_dir:
         required: true
-        type: string            # e.g. "src/schemas"
+        type: string
       package_name:
         required: true
-        type: string            # "gs-schemas" | "gs-env" | "gs-agent"
+        type: string
 
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
@@ -26,9 +27,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
 
@@ -45,10 +44,11 @@ jobs:
       - name: Create venv (in package dir)
         run: uv venv --python 3.12
 
-      - name: Preinstall build backend
-        run: uv pip install hatchling
+      # ⬅️ Install build backend + editables (required for editable wheels)
+      - name: Install build tools
+        run: uv pip install hatchling editables
 
-      # 🔧 IMPORTANT: stay in the package dir; install upstream deps by path
+      # stay in $package_dir; install upstream deps by path
       - name: Install local dependencies (editable)
         shell: bash
         run: |
@@ -77,6 +77,5 @@ jobs:
       - name: Pyright (type check)
         run: uvx pyright -p .
 
-      # Allow exit code 5 (no tests collected)
       - name: Pytest
         run: uv run python -m pytest -q || ([ $? -eq 5 ] && exit 0)
