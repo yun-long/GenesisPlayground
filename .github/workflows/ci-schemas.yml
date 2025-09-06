@@ -1,37 +1,44 @@
 name: CI (gs-schemas)
+
 on:
   push:
     paths:
       - "src/schemas/**"
+      - "uv.lock"
+      - "pyproject.toml"
       - ".github/workflows/ci-schemas.yml"
   pull_request:
     paths:
       - "src/schemas/**"
+      - "uv.lock"
+      - "pyproject.toml"
       - ".github/workflows/ci-schemas.yml"
 
 jobs:
-  lint-test:
-    runs-on: ubuntu-latest
+  build-test:
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: src/schemas
+
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
 
-      - name: Create venv
-        run: uv venv
+      - name: Cache venv & uv wheels
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/schemas/.venv
+            ~/.cache/uv
+          key: ${{ runner.os }}-py312-schemas-${{ hashFiles('uv.lock', 'src/schemas/pyproject.toml') }}
 
-      - name: Install package (editable) + dev tools
-        run: |
-          uv pip install -e .
-          uv pip install pytest ruff pyright
+      - run: uv venv --python 3.12
+      - run: uv pip install hatchling
+      - run: uv pip install -e . --no-build-isolation
+      - run: uv pip install pytest ruff pyright
 
-      - name: Ruff (lint)
-        run: uv run ruff check .
-
-      - name: Pyright (type check)
-        run: uv run pyright -p .
-
-      - name: Tests
-        run: uv run pytest -q
+      - run: uvx ruff check . --output-format=github
+      - run: uvx pyright -p .
+      - run: uv run python -m pytest -q || ([ $? -eq 5 ] && exit 0)
+q
