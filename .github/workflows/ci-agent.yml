@@ -22,7 +22,8 @@ jobs:
   agent:
     uses: ./.github/workflows/python-package.yml
     with:
-      os: ubuntu-24.04
-      package_dir: src/agent
-      package_name: gs-agent
+      project-directory: "."
+      package-directory: "src/agent"
+      package: "gs-agent"
+      runs-on: "ubuntu-24.04"
     secrets: inherit

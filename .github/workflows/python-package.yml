@@ -1,16 +1,18 @@
-# .github/workflows/python-package.yml
-name: Python package (reusable)
+name: Python package
 
 on:
   workflow_call:
     inputs:
-      os:
+      project-directory:   # e.g. "."
         required: true
         type: string
-      package_dir:
+      package-directory:   # e.g. "src/schemas"
         required: true
         type: string
-      package_name:
+      package:             # one of: "gs-schemas" | "gs-env" | "gs-agent"
+        required: true
+        type: string
+      runs-on:             # e.g. "ubuntu-24.04"
         required: true
         type: string
 
@@ -19,63 +21,68 @@ env:
   UV_LINK_MODE: copy
 
 jobs:
-  build-test:
-    runs-on: ${{ inputs.os }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.package_dir }}
+  lint-type-test:
+    runs-on: ${{ inputs.runs-on }}
 
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
 
+      # Cache the venv in the project dir, plus uv’s wheels cache
       - name: Cache venv & uv wheels
         uses: actions/cache@v4
         with:
           path: |
-            ${{ inputs.package_dir }}/.venv
+            ${{ inputs.project-directory }}/.venv
             ~/.cache/uv
           key: >-
-            ${{ runner.os }}-py312-${{ inputs.package_name }}-
+            ${{ runner.os }}-py312-${{ inputs.package }}-
             ${{ hashFiles('uv.lock', 'pyproject.toml', 'src/**/pyproject.toml') }}
 
-      - name: Create venv (in package dir)
-        run: uv venv --python 3.12
+      - name: Create venv in project directory
+        run: uv --project "${{ inputs.project-directory }}" venv --python 3.12
 
-      # ⬅️ Install build backend + editables (required for editable wheels)
+      # Needed for editable (PEP 660) builds when using --no-build-isolation
       - name: Install build tools
-        run: uv pip install hatchling editables
+        run: uv --project "${{ inputs.project-directory }}" pip install hatchling editables
 
-      # stay in $package_dir; install upstream deps by path
-      - name: Install local dependencies (editable)
+      # Install local deps by PATH, staying on the project (root) so the same venv is used
+      - name: Install package and local dependencies (editable, no isolation)
         shell: bash
         run: |
           set -eux
-          pkg="${{ inputs.package_name }}"
+          proj="${{ inputs.project-directory }}"
+          pkg="${{ inputs.package }}"
+          pkg_dir="${{ inputs.package-directory }}"
+
           if [[ "$pkg" == "gs-schemas" ]]; then
-            uv pip install -e . --no-build-isolation
+            uv --project "$proj" pip install -e "$pkg_dir" --no-build-isolation
           elif [[ "$pkg" == "gs-env" ]]; then
-            uv pip install -e ../schemas --no-build-isolation
-            uv pip install -e .          --no-build-isolation
+            uv --project "$proj" pip install -e "src/schemas" --no-build-isolation
+            uv --project "$proj" pip install -e "$pkg_dir"     --no-build-isolation
           elif [[ "$pkg" == "gs-agent" ]]; then
-            uv pip install -e ../schemas --no-build-isolation
-            uv pip install -e ../env     --no-build-isolation
-            uv pip install -e .          --no-build-isolation
+            uv --project "$proj" pip install -e "src/schemas" --no-build-isolation
+            uv --project "$proj" pip install -e "src/env"     --no-build-isolation
+            uv --project "$proj" pip install -e "$pkg_dir"    --no-build-isolation
           else
-            echo "Unknown package ${pkg}" >&2
+            echo "Unknown package: $pkg" >&2
             exit 2
           fi
 
       - name: Install dev tools
-        run: uv pip install pytest ruff pyright
+        run: uv --project "${{ inputs.project-directory }}" pip install pytest ruff pyright
 
+      # Use module/uvx style so we never hit “Failed to spawn: ruff”
       - name: Ruff (lint)
-        run: uvx ruff check . --output-format=github
+        run: uv --project "${{ inputs.project-directory }}" run python -m ruff check "${{ inputs.package-directory }}" --output-format=github
 
       - name: Pyright (type check)
-        run: uvx pyright -p .
+        run: uvx pyright -p "${{ inputs.package-directory }}"
 
+      # Allow exit code 5 when no tests are found
       - name: Pytest
-        run: uv run python -m pytest -q || ([ $? -eq 5 ] && exit 0)
+        run: uv --project "${{ inputs.project-directory }}" run python -m pytest -q "${{ inputs.package-directory }}" || ([ $? -eq 5 ] && exit 0)
