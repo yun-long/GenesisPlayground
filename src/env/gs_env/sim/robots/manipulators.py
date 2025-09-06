@@ -44,9 +44,9 @@ class ManipulatorBase(BaseGymRobot):
             visualize_contact=args.visualize_contact,
             vis_mode=args.vis_mode,
         )
-        assert isinstance(
-            robot_entity, RigidEntity
-        ), "Robot entity must be an instance of gs.Entity"
+        assert isinstance(robot_entity, RigidEntity), (
+            "Robot entity must be an instance of gs.Entity"
+        )
         self._robot_entity = robot_entity
 
         # == action space ==

@@ -5,7 +5,7 @@ on:
       - "*"
       - ".github/**"
       - "src/schemas/**"
-  merge_group:  # only fires if your repo uses merge queue
+  merge_group: # only fires if your repo uses merge queue
 jobs:
   gs-schemas:
     uses: ./.github/workflows/python-package.yml

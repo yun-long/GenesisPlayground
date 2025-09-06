@@ -1,50 +1,30 @@
 repos:
-  # --- Python formatting & linting ---
+  - repo: https://github.com/bufbuild/buf
+    rev: v1.55.1
+    hooks:
+      - id: buf-format
+      - id: buf-lint
+      - id: buf-generate
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.12.3
     hooks:
-      - id: ruff
-        args: [--fix]           # autofix what it can
-      - id: ruff-format         # code formatter (replaces black)
-
-  # --- Pyright type checking (quick, no deps install) ---
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.404
-    hooks:
-      - id: pyright
-        additional_dependencies: []   # uses packaged pyright
-        pass_filenames: false         # analyze the whole repo (fast enough)
-        args: ["--pythonversion", "3.10"]
-
-  # --- General hygiene hooks ---
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-      - id: check-merge-conflict
-      - id: check-yaml
-      - id: check-toml
-      - id: check-ast
-      - id: detect-private-key
-      - id: check-added-large-files
-        args: ["--maxkb=500"]
-
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.8.4
     hooks:
       - id: uv-lock
-        stages: [commit]   # run only when committing
-
-
-# Global excludes to keep hooks fast
-exclude: |
-  (?x)^(
-    .venv/|
-    dist/|
-    build/|
-    .*\.ipynb_checkpoints/|
-    docs/site/|
-    src/.*/(dist|build)/|
-    .*\.svg  # optional if you keep big svgs
-  )$
+        name: uv-lock (.)
+        args: [--project, .]
+      - id: uv-lock
+        name: uv-lock (./third_party/simpler_env)
+        args: [--project, ./third_party/simpler_env]
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.16.0
+    hooks:
+      - id: yamlfmt
+  - repo: https://github.com/pappasam/toml-sort
+    rev: v0.24.2
+    hooks:
+      - id: toml-sort-fix

@@ -4,17 +4,17 @@ version = "0.1.0"
 description = "RL and Imitation Learning algorithms for Genesis Playground."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = {text = "MIT"}
 dependencies = [
-  "gs-schemas>=0.1,<0.2",
-  "torch>=2.2",
-  "tensordict>=0.9",
-  "gymnasium>=1.2.0",
-  "pandas>=2.3.2",
   "fire>=0.7.0",
-  "wandb>=0.21.3",
+  "gs-schemas>=0.1,<0.2",
+  "gymnasium>=1.2.0",
   "matplotlib>=3.10.0",
+  "pandas>=2.3.2",
+  "tensordict>=0.9",
+  "torch>=2.2",
   "tqdm>=4.67.1",
+  "wandb>=0.21.3",
 ]
 
 [dependency-groups]
