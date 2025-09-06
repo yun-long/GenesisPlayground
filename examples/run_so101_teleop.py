@@ -45,7 +45,7 @@ def main() -> None:
         )
         teleop_wrapper.start()
         env = SO101CubeEnv()
-        teleop_wrapper.env = env
+        teleop_wrapper.set_environment(env)
 
 
         print("Environment initialized successfully.")

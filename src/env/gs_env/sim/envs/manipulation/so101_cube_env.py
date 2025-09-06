@@ -10,19 +10,29 @@ import genesis as gs
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.robots.so101_robot import SO101Robot
 
+_DEFAULT_DEVICE = torch.device("cpu")
 
-class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
+
+class SO101CubeEnv(BaseEnv):
     """SO101 robot environment with cube manipulation task."""
 
-    def __init__(self) -> None:
+    def __init__(self, device: torch.device = _DEFAULT_DEVICE) -> None:
+        super().__init__(device=device)
+        self._device = device
+        self._num_envs = 1  # Single environment for teleop
         FPS = 60
         # Create Genesis scene
         self.scene = gs.Scene(
             sim_options=gs.options.SimOptions(
-                substeps=1,
+                substeps=4,
                 dt=1/FPS,
             ),
             rigid_options=gs.options.RigidOptions(
+                enable_joint_limit=True,
+                enable_collision=True,
+                gravity=(0, 0, -9.8),
+                box_box_detection=True,
+                constraint_timeconst=0.02,
             ),
             viewer_options=gs.options.ViewerOptions(
                 camera_pos=(1.5, 0.0, 0.7),
@@ -65,8 +75,8 @@ class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
         # Store entities for easy access
         self.robot = self.entities["robot"]
         
-        # Initialize target location (on ground plane)
-        self.target_location = np.array([0.4, 0.0, 0.0])
+        # Initialize with randomized cube and target positions
+        self._randomize_cube()
         
         # Track current target point for visualization
         self.current_target_pos = None
@@ -84,51 +94,74 @@ class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
         self._randomize_cube()
 
 
-    def apply_action(self, action: torch.Tensor) -> None:
+    def apply_action(self, action: torch.Tensor | Any) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
-        # This is called by the BaseEnv interface, but we use apply_command for teleop
-        pass
+        # For teleop, action might be a command object instead of tensor
+        if isinstance(action, torch.Tensor):
+            # Empty tensor from teleop wrapper - no action to apply
+            pass
+        else:
+            # This is a command object from teleop
+            command = action
+            self.last_command = command
 
-    def apply_command(self, command: Any) -> None:
-        """Apply command to the environment."""
-        self.last_command = command
+            # Apply command to robot
+            self.entities["robot"].apply_teleop_command(command)
 
-        # Apply command to robot
-        self.entities["robot"].apply_teleop_command(command)
-
-        # Handle special commands
-        if command.reset_scene:
-            self.reset_idx(torch.IntTensor([0]))
-        elif command.quit_teleop:
-            print("Quit command received from teleop")
+            # Handle special commands
+            if hasattr(command, 'reset_scene') and command.reset_scene:
+                self.reset_idx(torch.IntTensor([0]))
+            elif hasattr(command, 'quit_teleop') and command.quit_teleop:
+                print("Quit command received from teleop")
         
-        # Step the scene after applying command (like goal_reaching_env)
+        # Step the scene (like goal_reaching_env)
         self.scene.step()
 
 
-    def get_observation(self) -> dict[str, Any] | None:
-        """Get current observation from the environment."""
+    def get_observations(self) -> torch.Tensor:
+        """Get current observation as tensor (BaseEnv requirement)."""
         robot_obs = self.entities["robot"].get_observation()
 
         if robot_obs is None:
-            return None
+            return torch.tensor([])
 
         # Get cube position
         cube_pos = np.array(self.entities["cube"].get_pos())
         cube_quat = np.array(self.entities["cube"].get_quat())
 
-        # Create observation
-        observation = {
-            'joint_positions': robot_obs['joint_positions'],
-            'end_effector_pos': robot_obs['end_effector_pos'],
-            'end_effector_quat': robot_obs['end_effector_quat'],
-            'cube_pos': cube_pos,
-            'cube_quat': cube_quat,
-            'rgb_images': {},  # No cameras in this simple setup
-            'depth_images': {}  # No depth sensors in this simple setup
-        }
+        # Create observation tensor (BaseEnv compatibility)
+        # Combine joint positions and end-effector pose into a single tensor
+        joint_pos = robot_obs['joint_positions']
+        ee_pos = robot_obs['end_effector_pos']
+        ee_quat = robot_obs['end_effector_quat']
+        
+        # Concatenate all observations into a single tensor
+        obs_tensor = torch.cat([
+            torch.tensor(joint_pos, dtype=torch.float32),
+            torch.tensor(ee_pos, dtype=torch.float32),
+            torch.tensor(ee_quat, dtype=torch.float32),
+            torch.tensor(cube_pos, dtype=torch.float32),
+            torch.tensor(cube_quat, dtype=torch.float32),
+        ])
 
-        return observation
+        return obs_tensor
+
+
+    def get_extra_infos(self) -> dict[str, Any]:
+        """Get extra information."""
+        return {}
+
+    def get_terminated(self) -> torch.Tensor:
+        """Get termination status."""
+        return torch.tensor([False])
+
+    def get_truncated(self) -> torch.Tensor:
+        """Get truncation status."""
+        return torch.tensor([False])
+
+    def get_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Get reward and reward components."""
+        return torch.tensor([0.0]), {}
 
     def is_episode_complete(self) -> torch.Tensor:
         """Check if episode is complete."""
@@ -243,7 +276,4 @@ class SO101CubeEnv: # please change it to class SO101CubeEnv(BaseEnv):
         """Number of parallel environments."""
         return 1  # Single environment for teleop
 
-    @property
-    def device(self) -> torch.device:
-        """Device for tensors."""
-        return gs.device
+    # Device property inherited from BaseEnv

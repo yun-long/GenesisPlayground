@@ -33,6 +33,7 @@ class SO101Robot(BaseGymRobot):
                 convexify=True,
                 decompose_robot_error_threshold=0,
             ),
+            vis_mode="collision",
         )
 
         # SO101 has 6 DOFs: shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper

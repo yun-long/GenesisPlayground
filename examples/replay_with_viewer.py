@@ -24,7 +24,14 @@ def main():
     print("Genesis initialized successfully.")
 
     # Create teleop wrapper and environment
-    teleop_wrapper = TeleopWrapper(env=SO101CubeEnv())
+    teleop_wrapper = TeleopWrapper(
+        env=None,  # Initialize with None
+        device=gs.cpu,
+        movement_speed=0.01,
+        rotation_speed=0.05
+    )
+    env = SO101CubeEnv()  # Create env after wrapper
+    teleop_wrapper.set_environment(env)  # Set env using new method
 
     # Replay the other trajectory (earlier one)
     teleop_wrapper.replay_latest_trajectory()

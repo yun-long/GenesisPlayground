@@ -94,6 +94,11 @@ class TeleopWrapper(BaseEnvWrapper):
         # Note: This might fail if environment isn't fully initialized yet
         # The pose will be initialized later when needed
 
+    def set_environment(self, env: Any) -> None:
+        """Set the environment after creation."""
+        # Use object.__setattr__ to bypass Final restriction
+        object.__setattr__(self, 'env', env)
+
     def start(self) -> None:
         """Start keyboard listener."""
         print("Starting teleop wrapper...")
@@ -141,7 +146,7 @@ class TeleopWrapper(BaseEnvWrapper):
     def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
         """Reset the environment."""
         self.env.reset_idx(torch.IntTensor([0]))
-        obs = self.env.get_observation() or {}
+        obs = self._convert_observation_to_dict() or {}
         return torch.tensor([]), obs
 
     def step(self, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
@@ -149,9 +154,8 @@ class TeleopWrapper(BaseEnvWrapper):
         # Process keyboard input and create command
         command = self._process_input()
 
-        # Apply command to environment
+        # Apply command to environment via apply_action
         if command:
-            self.env.apply_command(command)
             self.last_command = command
 
             # If reset command was sent, mark for pose reinitialization in next step
@@ -166,7 +170,11 @@ class TeleopWrapper(BaseEnvWrapper):
                 with self.lock:
                     self.pressed_keys.clear()
 
-        # Scene stepping is now handled by the environment's apply_command method
+            # Pass command directly to apply_action (like goal_reaching_env)
+            self.env.apply_action(command)
+        else:
+            # No command - just step the environment
+            self.env.apply_action(torch.tensor([]))
 
         # CHANGED: after a reset, sync cached pose from the actual env pose
         if self.pending_reset:
@@ -174,7 +182,7 @@ class TeleopWrapper(BaseEnvWrapper):
             self.pending_reset = False
 
         # Get observations
-        obs = self.env.get_observation() or {}
+        obs = self._convert_observation_to_dict() or {}
 
         # Record trajectory data if recording
         if self.recording and command is not None:
@@ -191,17 +199,44 @@ class TeleopWrapper(BaseEnvWrapper):
 
     def get_observations(self) -> torch.Tensor:
         """Get current observations."""
-        if hasattr(self, 'self.env') and self.env is not None:
-            obs = self.env.get_observation()
+        if hasattr(self, 'env') and self.env is not None:
+            obs = self.env.get_observations()
             if obs is None:
                 return torch.tensor([])
         return torch.tensor([])
+
+    def _convert_observation_to_dict(self) -> dict[str, Any] | None:
+        """Convert tensor observation to dictionary format for teleop compatibility."""
+        if self.env is None:
+            return None
+            
+        # Get robot observation directly for detailed info
+        robot_obs = self.env.entities["robot"].get_observation()
+        if robot_obs is None:
+            return None
+
+        # Get cube position
+        cube_pos = np.array(self.env.entities["cube"].get_pos())
+        cube_quat = np.array(self.env.entities["cube"].get_quat())
+
+        # Create observation dictionary (for teleop compatibility)
+        observation = {
+            'joint_positions': robot_obs['joint_positions'],
+            'end_effector_pos': robot_obs['end_effector_pos'],
+            'end_effector_quat': robot_obs['end_effector_quat'],
+            'cube_pos': cube_pos,
+            'cube_quat': cube_quat,
+            'rgb_images': {},  # No cameras in this simple setup
+            'depth_images': {}  # No depth sensors in this simple setup
+        }
+
+        return observation
 
     def _initialize_current_pose(self) -> None:
         """Initialize current pose from environment."""
         try:
             if self.env is not None:
-                obs = self.env.get_observation()
+                obs = self._convert_observation_to_dict()
                 if obs is not None:
                     self.current_position = obs['end_effector_pos'].copy()
                     from scipy.spatial.transform import Rotation as R
@@ -221,7 +256,7 @@ class TeleopWrapper(BaseEnvWrapper):
         """Reset teleop's cached pose to the environment's actual EE pose."""
         if self.env is None:
             return
-        obs = self.env.get_observation()
+        obs = self._convert_observation_to_dict()
         if obs is None:
             return
         from scipy.spatial.transform import Rotation as R
@@ -381,7 +416,7 @@ class TeleopWrapper(BaseEnvWrapper):
 
     def _record_initial_state(self) -> None:
         """Record the initial state of the environment (target and cube positions)."""
-        if not hasattr(self, 'self.env') or self.env is None:
+        if not hasattr(self, 'env') or self.env is None:
             return
         
         initial_state = {
@@ -474,7 +509,7 @@ class TeleopWrapper(BaseEnvWrapper):
                     step_data["observation"][key] = value
         
         # Add target location (debug sphere position) if available
-        if hasattr(self, 'self.env') and self.env is not None:
+        if hasattr(self, 'env') and self.env is not None:
             if hasattr(self.env, 'target_location'):
                 step_data["target_location"] = self.env.target_location.tolist()
             
@@ -487,7 +522,7 @@ class TeleopWrapper(BaseEnvWrapper):
                 }
 
         # Add robot joint positions (authoritative)
-        if hasattr(self, 'self.env') and self.env is not None:
+        if hasattr(self, 'env') and self.env is not None:
             robot = getattr(self.env, 'entities', {}).get('robot')
             if robot is not None and hasattr(robot, 'entity'):
                 try:
@@ -556,7 +591,7 @@ class TeleopWrapper(BaseEnvWrapper):
             print(f"❌ Trajectory file not found: {traj_file_path}")
             return
 
-        if not hasattr(self, 'self.env') or self.env is None:
+        if not hasattr(self, 'env') or self.env is None:
             print("❌ No environment set. Call set_environment() first.")
             return
 
@@ -697,7 +732,7 @@ class TeleopWrapper(BaseEnvWrapper):
             
             
             # Apply command to environment
-            self.env.apply_command(command)
+            self.env.apply_action(command)
             
             # Restore cube position if available in trajectory data
             if 'cube_state' in step_data and hasattr(self.env, 'entities') and 'cube' in self.env.entities:
