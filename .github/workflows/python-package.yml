@@ -58,9 +58,14 @@ jobs:
       - name: Install dev tools
         run: uv --project "${{ inputs.project-directory }}" pip install pytest ruff pyright
 
-      - name: Ruff
-        run: uv --project "${{ inputs.project-directory }}" run python -m ruff check "${{ inputs.package-directory }}" --output-format=github
-      - name: Pyright
+      - name: Ruff (lint)
+        run: uvx ruff check "${{ inputs.package-directory }}" --output-format=github
+
+      - name: Pyright (type check)
         run: uvx pyright -p "${{ inputs.package-directory }}"
+
       - name: Pytest
-        run: uv --project "${{ inputs.project-directory }}" run python -m pytest -q "${{ inputs.package-directory }}" || ([ $? -eq 5 ] && exit 0)
+        run: |
+          uv --project "${{ inputs.project-directory }}" run \
+             --isolated --locked --package "${{ inputs.package }}" \
+             python -m pytest -q "${{ inputs.package-directory }}" || ([ $? -eq 5 ] && exit 0)
