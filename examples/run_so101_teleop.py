@@ -37,14 +37,15 @@ def main() -> None:
     try:
         # Create teleop wrapper first (without environment)
         print("Creating teleop wrapper...")
-        env = SO101CubeEnv()
         teleop_wrapper = TeleopWrapper(
-            env=env,
+            env=None,
             device=torch.device("cpu"),
             movement_speed=0.01,  # Position movement speed
             rotation_speed=0.05   # Rotation speed
         )
         teleop_wrapper.start()
+        env = SO101CubeEnv()
+        teleop_wrapper.env = env
 
 
         print("Environment initialized successfully.")
