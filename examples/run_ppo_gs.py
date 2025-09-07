@@ -8,6 +8,7 @@ from gs_agent.algos.ppo import PPO
 from gs_agent.runners.config.registry import RUNNER_GOAL_REACHING_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
+from gs_agent.utils.policy_loader import load_latest_experiment
 from gs_agent.wrappers.gs_env_wrapper import GenesisEnvWrapper
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.envs.config.registry import EnvArgsRegistry
@@ -52,24 +53,35 @@ def create_ppo_runner_from_registry(env: BaseEnv) -> OnPolicyRunner:
     return runner
 
 
-def main(num_envs: int = 2048, show_viewer: bool = False) -> None:
+def evaluate_policy(runner: OnPolicyRunner, device: torch.device = torch.device("cpu")) -> None:
+    """Evaluate the policy."""
+    log_dir = load_latest_experiment(exp_name="goal_reach", algo="gsppo")
+    print(f"Loading policy from {log_dir}")
+
+
+
+def main(num_envs: int = 2048, show_viewer: bool = False, train: bool = True) -> None:
     """Main function demonstrating proper registry usage."""
     # create environment
     env = create_gs_env(show_viewer=show_viewer, num_envs=num_envs)
     # Get configuration and runner from registry
     runner = create_ppo_runner_from_registry(env)
-    # Set up logging with proper configuration
-    logger = logger_configure(
-        folder=str(runner.save_dir), format_strings=["stdout", "csv", "wandb"]
-    )
-    # Train using Runner
-    train_summary_info = runner.train(metric_logger=logger)
+    if train:
+        # Set up logging with proper configuration
+        logger = logger_configure(
+            folder=str(runner.save_dir), format_strings=["stdout", "csv", "wandb"]
+        )
+        # Train using Runner
+        train_summary_info = runner.train(metric_logger=logger)
 
-    print("Training completed successfully!")
-    print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
-    print(f"Total episodes: {train_summary_info['total_episodes']}.")
-    print(f"Total steps: {train_summary_info['total_steps']}.")
-    print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
+        print("Training completed successfully!")
+        print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
+        print(f"Total episodes: {train_summary_info['total_episodes']}.")
+        print(f"Total steps: {train_summary_info['total_steps']}.")
+        print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
+    else:
+        print(f"Evaluating policy on {env.device}")
+        evaluate_policy(runner, device=env.device)
 
 
 if __name__ == "__main__":

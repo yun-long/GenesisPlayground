@@ -12,6 +12,8 @@ from gs_agent.algos.ppo import PPO
 from gs_agent.runners.config.registry import RUNNER_PENDULUM_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
+from gs_agent.utils.policy_loader import load_latest_experiment
+from gs_agent.utils.policy_loader import load_latest_model
 from gs_agent.wrappers.gym_env_wrapper import GymEnvWrapper
 
 
@@ -59,8 +61,7 @@ def evaluate_policy(checkpoint_path: Path, num_episodes: int = 10) -> None:
     checkpoint = torch.load(checkpoint_path, map_location=wrapped_env.device, weights_only=False)
 
     # Get config from checkpoint if available, otherwise use default
-    ppo_args = checkpoint["config"]
-    ppo = PPO(env=wrapped_env, cfg=ppo_args, device=wrapped_env.device)
+    ppo = PPO(env=wrapped_env, cfg=PPO_PENDULUM_MLP, device=wrapped_env.device)
 
     # Load checkpoint
     ppo.load(checkpoint_path)
@@ -75,14 +76,14 @@ def evaluate_policy(checkpoint_path: Path, num_episodes: int = 10) -> None:
 
     inference_policy = ppo.get_inference_policy()
     for episode in range(num_episodes):
-        obs = wrapped_env.reset()
+        obs, _info = wrapped_env.reset()
         episode_reward = 0.0
         episode_length = 0
 
         while True:
             with torch.no_grad():
-                policy_output = inference_policy(obs, deterministic=True)  # type: ignore
-                obs, reward, done, _ = wrapped_env.step(policy_output.action)  # type: ignore
+                action, _log_prob = inference_policy(obs, deterministic=True)  # type: ignore
+                obs, reward, done, _, _ = wrapped_env.step(action)  # type: ignore
 
             episode_reward += reward.item()
             episode_length += 1
@@ -118,31 +119,18 @@ def main(train: bool = True) -> None:
             folder=str(runner.save_dir), format_strings=["stdout", "csv", "wandb"]
         )
         # Train using Runner
-        try:
-            train_summary_info = runner.train(metric_logger=logger)
-
-            print("Training completed successfully!")
-            print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
-            print(f"Total episodes: {train_summary_info['total_episodes']}.")
-            print(f"Total steps: {train_summary_info['total_steps']}.")
-            print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
-        except KeyboardInterrupt:
-            print("\nTraining interrupted by user.")
-            # Ensure logger is closed properly
-            logger.close()
-            print("Exiting...")
-            return
+        train_summary_info = runner.train(metric_logger=logger)
+        print("Training completed successfully!")
+        print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
+        print(f"Total episodes: {train_summary_info['total_episodes']}.")
+        print(f"Total steps: {train_summary_info['total_steps']}.")
+        print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
 
     else:
-        # TODO: add evaluation mode
-        raise NotImplementedError("Evaluation mode is not implemented")
-        # checkpoint = find_latest_checkpoint_if_exists()
-        # if checkpoint is None:
-        #     raise ValueError("No checkpoints found in ./logs directory")
-        #
-        # print(f"Evaluating policy from {checkpoint}")
-        # eval_episodes = 10
-        # evaluate_policy(checkpoint, eval_episodes)
+        log_dir = load_latest_experiment(exp_name="gym_pendulum", algo="ppo")
+        print(f"Loading policy from {log_dir}")
+        model_path = load_latest_model(Path(log_dir))
+        evaluate_policy(model_path, num_episodes=10)
 
 
 if __name__ == "__main__":

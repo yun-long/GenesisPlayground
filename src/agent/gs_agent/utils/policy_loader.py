@@ -1,11 +1,13 @@
 import glob
 import os
 import pickle
+import torch
+from pathlib import Path
 
 
-def load_latest_experiment(exp_name: str = "goal_reach", algo: str = "gsppo") -> str:
+def load_latest_experiment(exp_name: str = "goal_reach", algo: str = "ppo") -> str:
     """Load the most recent experiment directory and return its path."""
-    log_pattern = f"logs/{algo}_{exp_name}_*"
+    log_pattern = f"logs/{algo}_{exp_name}/*"
     log_dirs = glob.glob(log_pattern)
 
     if not log_dirs:
@@ -29,16 +31,17 @@ def load_ppo_config(log_dir: str) -> dict:  # type: ignore
     return ppo_cfg
 
 
-def load_latest_model(log_dir: str) -> str:
-    """Load the most recent model checkpoint from experiment directory."""
-    model_files = glob.glob(os.path.join(log_dir, "checkpoints/model_*.pt"))
-    if not model_files:
-        raise FileNotFoundError(f"No model files found in {log_dir}")
+def load_latest_model(log_dir: Path) -> Path:
+    """Load the most recent checkpoint from experiment directory."""
+    checkpoint_files = glob.glob(os.path.join(log_dir, "checkpoints/checkpoint_*.pt"))
+    if not checkpoint_files:
+        raise FileNotFoundError(f"No checkpoint files found in {log_dir}")
 
-    model_files.sort(
+    checkpoint_files.sort(
         key=lambda x: int(os.path.basename(x).split("_")[1].split(".")[0]), reverse=True
     )
-    resume_path = model_files[0]
+    latest_checkpoint = checkpoint_files[0]
 
-    print(f"Loading model from: {resume_path}")
-    return resume_path
+    print(f"Loading model from: {latest_checkpoint}")
+    return Path(latest_checkpoint)
+

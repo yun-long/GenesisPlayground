@@ -262,10 +262,6 @@ class PPO(BaseAlgo):
             self._actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
             self._critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
         self._current_iter = checkpoint["iter"]
-        if self.cfg.norm_obs:
-            self.actor_obs_normalizer.load_state_dict(checkpoint["actor_obs_normalizer"])
-            self.critic_obs_normalizer.load_state_dict(checkpoint["critic_obs_normalizer"])
-        return checkpoint.get("infos", None)
 
     def train_mode(self) -> None:
         """Set the algorithm to train mode."""
