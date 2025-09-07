@@ -8,7 +8,7 @@ import torch
 from gs_agent.bases.algo import BaseAlgo
 from gs_agent.bases.policy import Policy
 from gs_agent.bases.runner import BaseRunner
-from gs_agent.configs.schema import RunnerArgs
+from gs_agent.runners.config.schema import RunnerArgs
 
 _DEFAULT_DEVICE: Final[torch.device] = torch.device("cpu")
 
@@ -57,37 +57,40 @@ class OnPolicyRunner(BaseRunner):
         Returns:
             Dictionary containing training results and final metrics
         """
-        print(f"Starting training for {self.args.total_episodes} episodes")
+        print(f"Starting training for {self.args.total_iterations} iterations")
 
         start_time = time.time()
         total_steps = 0
-        total_episodes = 0
+        total_iterations = 0
         reward_list = []
 
-        for episode in range(self.args.total_episodes):
+        for iteration in range(self.args.total_iterations):
             # Training step
-            train_one_episode_metrics = self.algorithm.train_one_episode()
+            train_one_iteration_metrics = self.algorithm.train_one_iteration()
 
-            total_episodes += 1
-            total_steps += train_one_episode_metrics["speed"]["rollout_step"]
-            reward_list.append(train_one_episode_metrics["rollout"]["mean_reward"])
+            total_iterations += 1
+            total_steps += train_one_iteration_metrics["speed"]["rollout_step"]
+            reward_list.append(train_one_iteration_metrics["rollout"]["mean_reward"])
 
             # Logging
-            if episode % self.args.log_interval == 0:
-                self._log_metrics(metric_logger, train_one_episode_metrics, episode)
+            if iteration % self.args.log_interval == 0:
+                # also log current iteration
+                metric_logger.record("iteration", iteration)
+                self._log_metrics(metric_logger, train_one_iteration_metrics, iteration)
 
             # Regular checkpointing
-            if episode % self.args.save_interval == 0:
-                self._save_checkpoint(Path(f"checkpoint_{episode}.pt"))
+            if iteration % self.args.save_interval == 0:
+                self._save_checkpoint(Path(f"checkpoint_{iteration}.pt"))
 
         # Training summary
         training_time = time.time() - start_time
 
         return {
-            "total_episodes": total_episodes,
+            "total_iterations": total_iterations,
             "total_steps": total_steps,
             "total_time": training_time,
             "final_reward": reward_list[-1],
+            "final_iteration": total_iterations,
         }
 
     def _log_metrics(

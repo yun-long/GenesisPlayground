@@ -30,9 +30,9 @@ class BaseAlgo(ABC):
         self.device: Final[torch.device] = device
 
     @abstractmethod
-    def train_one_episode(self) -> dict[str, Any]:
+    def train_one_iteration(self) -> dict[str, Any]:
         """
-        Train the algorithm for a given episode.
+        Train the algorithm for a given iteration.
 
         Returns:
             A dictionary containing the training results.

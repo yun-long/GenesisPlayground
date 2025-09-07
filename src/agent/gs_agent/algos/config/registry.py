@@ -1,26 +1,5 @@
-from pathlib import Path
-
-from gs_agent.configs.schema import (
-    ActivationType,
-    MLPConfig,
-    OptimizerType,
-    PPOArgs,
-    RunnerArgs,
-)
-
-# ------------------------------------------------------------
-# Network Config
-# ------------------------------------------------------------
-
-DEFAULT_MLP = MLPConfig(
-    hidden_dims=(256, 256, 128),
-    activation=ActivationType.RELU,
-)
-
-
-# ------------------------------------------------------------
-# Algorithm Config
-# ------------------------------------------------------------
+from gs_agent.algos.config.schema import OptimizerType, PPOArgs
+from gs_agent.modules.config.registry import DEFAULT_MLP
 
 # default PPO config
 PPO_DEFAULT = PPOArgs(
@@ -81,32 +60,4 @@ PPO_GOAL_REACHING_MLP = PPOArgs(
     rollout_length=32,
     optimizer_type=OptimizerType.ADAM,
     weight_decay=0.0,
-)
-
-
-# ------------------------------------------------------------
-# Runner Config
-# ------------------------------------------------------------
-
-
-RUNNER_DEFAULT = RunnerArgs(
-    total_episodes=100,
-    log_interval=10,
-    save_interval=100,
-    save_path=Path("./logs/default"),
-)
-
-
-RUNNER_PENDULUM_MLP = RunnerArgs(
-    total_episodes=500,
-    log_interval=10,
-    save_interval=100,
-    save_path=Path("./logs/ppo_gym_pendulum"),
-)
-
-RUNNER_GOAL_REACHING_MLP = RunnerArgs(
-    total_episodes=500,
-    log_interval=10,
-    save_interval=100,
-    save_path=Path("./logs/ppo_gs_goal_reaching"),
 )

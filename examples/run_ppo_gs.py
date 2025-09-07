@@ -3,8 +3,9 @@
 
 import fire
 import torch
+from gs_agent.algos.config.registry import PPO_GOAL_REACHING_MLP
 from gs_agent.algos.ppo import PPO
-from gs_agent.configs import PPO_GOAL_REACHING_MLP, RUNNER_GOAL_REACHING_MLP
+from gs_agent.runners.config.registry import RUNNER_GOAL_REACHING_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
 from gs_agent.wrappers.gs_env_wrapper import GenesisEnvWrapper

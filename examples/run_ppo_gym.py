@@ -7,8 +7,9 @@ from pathlib import Path
 import fire
 import gymnasium as gym
 import torch
+from gs_agent.algos.config.registry import PPO_PENDULUM_MLP
 from gs_agent.algos.ppo import PPO
-from gs_agent.configs import PPO_PENDULUM_MLP, RUNNER_PENDULUM_MLP
+from gs_agent.runners.config.registry import RUNNER_PENDULUM_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
 from gs_agent.wrappers.gym_env_wrapper import GymEnvWrapper
@@ -117,13 +118,20 @@ def main(train: bool = True) -> None:
             folder=str(runner.save_dir), format_strings=["stdout", "csv", "wandb"]
         )
         # Train using Runner
-        train_summary_info = runner.train(metric_logger=logger)
+        try:
+            train_summary_info = runner.train(metric_logger=logger)
 
-        print("Training completed successfully!")
-        print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
-        print(f"Total episodes: {train_summary_info['total_episodes']}.")
-        print(f"Total steps: {train_summary_info['total_steps']}.")
-        print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
+            print("Training completed successfully!")
+            print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
+            print(f"Total episodes: {train_summary_info['total_episodes']}.")
+            print(f"Total steps: {train_summary_info['total_steps']}.")
+            print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
+        except KeyboardInterrupt:
+            print("\nTraining interrupted by user.")
+            # Ensure logger is closed properly
+            logger.close()
+            print("Exiting...")
+            return
 
     else:
         # TODO: add evaluation mode

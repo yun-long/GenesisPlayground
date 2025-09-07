@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from gs_agent.bases.network_backbone import NetworkBackbone
-from gs_agent.configs.schema import (
+from gs_agent.modules.config.schema import (
     ActivationType,
     MLPConfig,
     NetworkBackboneConfig,
