@@ -1,4 +1,61 @@
-## Contributing
-- Respect package boundaries: gs-schema (no deps), gs-env -> gs-schema, gs-agent -> gs-schema (+ optional gs-env).
-- Add/modify public APIs only in minor/major bumps (SemVer).
-- Run: `ruff`, `pyright`, `pytest` locally before PR.
+# Contributing to Genesis Playground
+
+Thank you for your interest in contributing! 🎉  
+This document outlines the minimal steps to get started.
+
+---
+
+## Principles and Socpe
+
+- **Typing first**: Prefer explicit types (std `typing`, `jaxtyping`, `pydantic` models for configs & data schemas). Type errors are design feedback.
+- **Tensor‑native**:  Training Environments and algorithms operate on PyTorch tensors only (no numpy in hot paths). Convert at boundaries.
+- **Modular & composable**: Small, single‑purpose modules with clear interfaces. Favor composition over inheritance.
+
+## Tooling & Baselines
+
+- **Package/Env**: `uv` for lock/venv & scripts. 
+- **Lint/Format**: `ruff` with autofix + format (project config). No black/isort separately.
+- **Typecheck**: `pyright` strict for `src/*`
+- **Pre‑commit**: hooks for `ruff`, pyright (optional), buf (if protobuf), uv‑lock, yamlfmt.
+- **CI**: Automatic flow for continuous integrations
+
+## 1. Getting Started 
+
+- Fork the repository and clone your fork.
+- Install dependencies with [uv](https://github.com/astral-sh/uv):
+
+```bash
+# create virtual environments
+uv venv
+# sync environments
+uv sync --package gs-env
+# 
+pre-commit install
+```
+
+## 2. Development Flow
+
+- Create a feature branch:
+
+```bash
+git checkout -b feat/my-feature
+```
+
+- Run checks locally before committing:
+
+```
+pre-commit run --all-files
+```
+
+## 3. Pull Request
+
+- Keep PRs focused and under ~500 LOC when possible.
+- Use Conventional Commits
+  - for commit messages:
+  - [Feat]: add PPO config validation
+  - [Fix]: correct reward tensor shape
+  - [Docs]: update env README
+- Ensure:
+  - [ ] Lint, typecheck, and tests pass
+  - [ ] New code has tests/docs
+  - [ ] Examples run successfully
