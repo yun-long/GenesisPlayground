@@ -77,9 +77,6 @@ class PPO(BaseAlgo):
         value_lr = self.cfg.value_lr if self.cfg.value_lr is not None else self.cfg.lr
         self._critic_optimizer = torch.optim.Adam(self._critic.parameters(), lr=value_lr)
 
-        self.actor_obs_normalizer = torch.nn.Identity().to(self.device)  # no normalization
-        self.critic_obs_normalizer = torch.nn.Identity().to(self.device)  # no normalization
-
         print("Device: ", self.device)
 
     def _build_rollouts(self) -> None:
@@ -261,19 +258,15 @@ class PPO(BaseAlgo):
         if load_optimizer:
             self._actor_optimizer.load_state_dict(checkpoint["actor_optimizer_state_dict"])
             self._critic_optimizer.load_state_dict(checkpoint["critic_optimizer_state_dict"])
-        self._current_iter = checkpoint["iter"]
+        self.current_iter = checkpoint["iter"]
 
     def train_mode(self) -> None:
         """Set the algorithm to train mode."""
         self._actor.train()
-        self.actor_obs_normalizer.train()
-        self.critic_obs_normalizer.train()
 
     def eval_mode(self) -> None:
         """Set the algorithm to eval mode."""
         self._actor.eval()
-        self.actor_obs_normalizer.eval()
-        self.critic_obs_normalizer.eval()
 
     def get_inference_policy(self, device: torch.device | None = None) -> Policy:
         """Get the inference policy for evaluation."""

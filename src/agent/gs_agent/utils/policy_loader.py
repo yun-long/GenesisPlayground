@@ -1,7 +1,6 @@
 import glob
 import os
 import pickle
-import torch
 from pathlib import Path
 
 
@@ -44,4 +43,3 @@ def load_latest_model(log_dir: Path) -> Path:
 
     print(f"Loading model from: {latest_checkpoint}")
     return Path(latest_checkpoint)
-

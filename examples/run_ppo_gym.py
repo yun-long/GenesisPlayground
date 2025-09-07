@@ -12,8 +12,7 @@ from gs_agent.algos.ppo import PPO
 from gs_agent.runners.config.registry import RUNNER_PENDULUM_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
-from gs_agent.utils.policy_loader import load_latest_experiment
-from gs_agent.utils.policy_loader import load_latest_model
+from gs_agent.utils.policy_loader import load_latest_experiment, load_latest_model
 from gs_agent.wrappers.gym_env_wrapper import GymEnvWrapper
 
 
@@ -56,43 +55,29 @@ def evaluate_policy(checkpoint_path: Path, num_episodes: int = 10) -> None:
     """Evaluate a trained policy."""
     # Create environment with rendering
     wrapped_env = create_gym_env(render_mode="human")
-
-    # Load the saved PPO algorithm directly
-    checkpoint = torch.load(checkpoint_path, map_location=wrapped_env.device, weights_only=False)
-
     # Get config from checkpoint if available, otherwise use default
     ppo = PPO(env=wrapped_env, cfg=PPO_PENDULUM_MLP, device=wrapped_env.device)
-
     # Load checkpoint
     ppo.load(checkpoint_path)
-    print(f"Loaded checkpoint from {checkpoint_path}")
-
     # Set to evaluation mode
     ppo.eval_mode()
-
     # Evaluate
     episode_rewards = []
     episode_lengths = []
-
     inference_policy = ppo.get_inference_policy()
     for episode in range(num_episodes):
         obs, _info = wrapped_env.reset()
         episode_reward = 0.0
         episode_length = 0
-
         while True:
             with torch.no_grad():
                 action, _log_prob = inference_policy(obs, deterministic=True)  # type: ignore
                 obs, reward, done, _, _ = wrapped_env.step(action)  # type: ignore
-
             episode_reward += reward.item()
             episode_length += 1
-
             if done.item():
                 break
-
             time.sleep(0.01)
-
         episode_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
         print(f"Episode {episode + 1}: reward={episode_reward:.3f}, length={episode_length}")

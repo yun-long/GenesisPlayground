@@ -53,11 +53,10 @@ def create_ppo_runner_from_registry(env: BaseEnv) -> OnPolicyRunner:
     return runner
 
 
-def evaluate_policy(runner: OnPolicyRunner, device: torch.device = torch.device("cpu")) -> None:
+def evaluate_policy() -> None:
     """Evaluate the policy."""
     log_dir = load_latest_experiment(exp_name="goal_reach", algo="gsppo")
     print(f"Loading policy from {log_dir}")
-
 
 
 def main(num_envs: int = 2048, show_viewer: bool = False, train: bool = True) -> None:
@@ -81,7 +80,7 @@ def main(num_envs: int = 2048, show_viewer: bool = False, train: bool = True) ->
         print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
     else:
         print(f"Evaluating policy on {env.device}")
-        evaluate_policy(runner, device=env.device)
+        evaluate_policy()
 
 
 if __name__ == "__main__":

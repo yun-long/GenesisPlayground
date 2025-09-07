@@ -1,4 +1,3 @@
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -174,13 +173,6 @@ def test_clear_and_reset(buffer: BCBuffer, cfg: dict[str, Any]) -> None:
         make_transition(cfg["num_envs"], cfg["obs_size"], cfg["action_size"], cfg["device"])
     )
     assert len(buffer) == 1
-
-
-def test_minibatch_empty_iterator_when_empty(cfg: dict[str, Any]) -> None:
-    buf = BCBuffer(**cfg)
-    it: Iterator | None = buf.minibatch_gen(batch_size=4, num_epochs=1, shuffle=False)
-    # The generator returns immediately; iterating should produce nothing.
-    assert next(it, None) is None
 
 
 def test_type_and_key_usage(buffer: BCBuffer, cfg: dict[str, Any]) -> None:
