@@ -7,24 +7,24 @@ requires-python = ">=3.10"
 dependencies = [
   "fire>=0.7.0",
   "genesis-world ; sys_platform != 'linux' or platform_machine != 'aarch64'",
-  "gs-schemas",
   "gs-agent",
+  "gs-schemas",
+  "huggingface-hub>=0.24.7",
   "loguru>=0.7.3",
   "numpy>=2.2.5",
-  "torch>=2.6.0",
-  "huggingface-hub>=0.24.7",
   "pynput>=1.7.6",
   "scipy>=1.11.0",
+  "torch>=2.6.0",
 ]
-
 
 [dependency-groups]
 dev = [
-  "pre-commit>=4.2.0",
-  "pyright[nodejs]>=1.1.402",
-  "pytest-asyncio>=1.0.0",
-  "pytest>=8.3.5",
-  "ruff>=0.11.9",
+  "fire>=0.7.0",
+  "pre-commit>=4.3.0",
+  "pyright[nodejs]>=1.1.404",
+  "pytest-timeout>=2.4.0",
+  "pytest>=8.4.1",
+  "ruff>=0.12.10",
 ]
 
 [build-system]

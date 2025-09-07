@@ -4,19 +4,20 @@ name = "genesis-playground"
 description = "Playground for building intelligent robots"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = {text = "MIT"}
 dynamic = ["version"]
-
 # Root meta-package pulls in the three subpackages released together
 dependencies = [
-  "gs-schemas>=0.0.1,<0.1",
-  "gs-env>=0.0.1,<0.1",
   "gs-agent>=0.0.1,<0.1",
+  "gs-env>=0.0.1,<0.1",
+  "gs-schemas>=0.0.1,<0.1",
 ]
 
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
+
+[tool.hatch]
 
 [tool.hatch.version]
 source = "regex"
@@ -44,13 +45,28 @@ line-length = 100
 src = ["."]
 target-version = "py310"
 exclude = [
-  "src/agent/gs_agent/utils/logger.py"
+  "src/agent/gs_agent/utils/logger.py",
 ]
 
 [tool.ruff.lint]
 select = [
-  "ANN001","ANN201","ANN202","ANN204","ANN205","ANN206",
-  "ASYNC","B","E","F","G","I","INP","RUF100","SLF","UP","W",
+  "ANN001",
+  "ANN201",
+  "ANN202",
+  "ANN204",
+  "ANN205",
+  "ANN206",
+  "ASYNC",
+  "B",
+  "E",
+  "F",
+  "G",
+  "I",
+  "INP",
+  "RUF100",
+  "SLF",
+  "UP",
+  "W",
 ]
 ignore = ["E501"]
 
@@ -58,8 +74,10 @@ ignore = ["E501"]
 "*/scripts/*" = ["INP001"]
 
 # ---------------- Pytest ----------------
+[tool.pytest]
+
 [tool.pytest.ini_options]
-filterwarnings = ["error","ignore::DeprecationWarning","ignore::ImportWarning"]
+filterwarnings = ["error", "ignore::DeprecationWarning", "ignore::ImportWarning"]
 markers = ["gpu: tests that require gpus"]
 
 # ---------------- uv ----------------
@@ -72,30 +90,29 @@ required-environments = [
 
 # Map dependency names to workspace members (names must match [project].name)
 [tool.uv.sources]
-fairscale = { git = "https://github.com/facebookresearch/fairscale", rev = "146f160241651e1211c4247979f159a4ef43b54a" }
-genesis-world = { git = "https://github.com/Genesis-Embodied-AI/Genesis", rev = "5a8928a5e1b3d9e668bb2381ded44ef64357afb2" }
-gs-env    = { workspace = true }
-gs-agent  = { workspace = true }
-gs-schemas = { workspace = true }
-
+fairscale = {git = "https://github.com/facebookresearch/fairscale", rev = "146f160241651e1211c4247979f159a4ef43b54a"}
+genesis-world = {git = "https://github.com/Genesis-Embodied-AI/Genesis", rev = "5a8928a5e1b3d9e668bb2381ded44ef64357afb2"}
+gs-env = {workspace = true}
+gs-agent = {workspace = true}
+gs-schemas = {workspace = true}
 torch = [
-  { index = "pytorch-cpu",  marker = "sys_platform != 'linux'" },
-  { index = "pytorch-cpu",  marker = "sys_platform == 'linux' and platform_machine != 'x86_64'" },
-  { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  {index = "pytorch-cpu", marker = "sys_platform != 'linux'"},
+  {index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine != 'x86_64'"},
+  {index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"},
 ]
 torchvision = [
-  { index = "pytorch-cpu",  marker = "sys_platform != 'linux'" },
-  { index = "pytorch-cpu",  marker = "sys_platform == 'linux' and platform_machine != 'x86_64'" },
-  { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  {index = "pytorch-cpu", marker = "sys_platform != 'linux'"},
+  {index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine != 'x86_64'"},
+  {index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"},
 ]
 xformers = [
-  { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  {index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'"},
 ]
 
 [tool.uv.workspace]
 members = [
-  "src/env",
   "src/agent",
+  "src/env",
   "src/schemas",
 ]
 

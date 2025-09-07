@@ -1,31 +1,4 @@
-import random
-
-import cv2
-import numpy as np
 import torch
-from tensordict import TensorDict
-
-
-def validate_tensordict(
-    td: TensorDict, spec: dict[str, tuple[type, tuple]], prefix: str = ""
-) -> None:
-    for key, (expected_type, expected_shape) in spec.items():
-        if key not in td.keys():
-            raise KeyError(f"Missing key '{prefix + key}' in TensorDict")
-        val = td[key]
-        if not isinstance(val, expected_type):
-            raise TypeError(f"Key '{prefix + key}' expected {expected_type}, got {type(val)}")
-        if expected_shape != (None,) and val.shape[-len(expected_shape) :] != expected_shape:
-            raise ValueError(
-                f"Key '{prefix + key}' expected shape ending in {expected_shape}, got {tuple(val.shape)}"
-            )
-
-
-def maybe_validate_tensordict(
-    td: TensorDict, spec: dict[str, tuple[type, tuple]], prefix: str = "", DEBUG_MODE: bool = False
-) -> None:
-    if DEBUG_MODE:
-        validate_tensordict(td, spec, prefix)
 
 
 def split_and_pad_trajectories(
@@ -65,7 +38,7 @@ def split_and_pad_trajectories(
         torch.zeros(tensor.shape[0], tensor.shape[-1], device=tensor.device),
     )
     # pad the trajectories to the length of the longest trajectory
-    padded_trajectories = torch.nn.utils.rnn.pad_sequence(trajectories)
+    padded_trajectories = torch.nn.utils.rnn.pad_sequence(trajectories)  # type: ignore
     # remove the added tensor
     padded_trajectories = padded_trajectories[:, :-1]
 
@@ -83,36 +56,3 @@ def unpad_trajectories(trajectories: torch.Tensor, masks: torch.Tensor) -> torch
         .view(-1, trajectories.shape[0], trajectories.shape[-1])
         .transpose(1, 0)
     )
-
-
-def set_seed(seed: int) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
-def save_images_to_video(images: list[np.ndarray], output_path: str, fps: int = 30) -> None:
-    """
-    Save a list of images (numpy arrays) as a video.
-
-    Args:
-        images (List[np.ndarray]): List of images (H, W, 3) in uint8 format.
-        output_path (str): Output path of the video (e.g., 'video.mp4').
-        fps (int): Frames per second.
-    """
-    if len(images) == 0:
-        raise ValueError("No images provided for video saving.")
-
-    height, width, _ = images[0].shape
-    writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
-
-    for img in images:
-        writer.write(img)
-
-    writer.release()
-    print(f"[INFO] Video saved to: {output_path}")

@@ -276,7 +276,7 @@ def filter_excluded_keys(
 
     def is_excluded(key: str) -> bool:
         return (
-            key in key_excluded and key_excluded[key] is not None and _format in key_excluded[key]
+            key in key_excluded and key_excluded[key] is not None and _format in key_excluded[key] # type: ignore
         )
 
     return {key: value for key, value in key_values.items() if not is_excluded(key)}
@@ -441,7 +441,7 @@ class TensorBoardOutputFormat(KVWriter):
                 self.writer.add_histogram(key, value, step)
 
             if isinstance(value, Video):
-                self.writer.add_video(key, value.frames, step, value.fps)
+                self.writer.add_video(key, value.frames, step, int(value.fps))
 
             if isinstance(value, Figure):
                 self.writer.add_figure(key, value.figure, step, close=value.close)
@@ -451,12 +451,12 @@ class TensorBoardOutputFormat(KVWriter):
 
             if isinstance(value, HParam):
                 # we don't use `self.writer.add_hparams` to have control over the log_dir
-                experiment, session_start_info, session_end_info = hparams(
+                experiment, session_start_info, session_end_info = hparams( # type: ignore
                     value.hparam_dict, metric_dict=value.metric_dict
                 )
-                self.writer.file_writer.add_summary(experiment)
-                self.writer.file_writer.add_summary(session_start_info)
-                self.writer.file_writer.add_summary(session_end_info)
+                self.writer.file_writer.add_summary(experiment) # type: ignore
+                self.writer.file_writer.add_summary(session_start_info) # type: ignore
+                self.writer.file_writer.add_summary(session_end_info) # type: ignore
 
         # Flush the output to the file
         self.writer.flush()
@@ -483,7 +483,7 @@ class WandbOutputFormat(KVWriter):
         self,
         project: str,
         entity: str | None = None,
-        config: dict | None = None,
+        config: dict[str, Any] | None = None,
         log_dir: str | None = None,
     ):
         if log_dir is not None:
@@ -507,10 +507,10 @@ class WandbOutputFormat(KVWriter):
             elif isinstance(value, Figure):
                 wandb.log({key: wandb.Image(value.figure, caption=key)}, step=step)
             elif isinstance(value, Video):
-                wandb.log({key: wandb.Video(value.frames, fps=value.fps, format="mp4")}, step=step)
+                wandb.log({key: wandb.Video(value.frames, fps=int(value.fps), format="mp4")}, step=step) # type: ignore
             elif isinstance(value, HParam):
                 wandb.config.update(value.hparam_dict)
-                wandb.log(value.metric_dict, step=step)
+                wandb.log(value.metric_dict, step=step) # type: ignore
             else:
                 # For other types, log as text
                 wandb.log({key: str(value)}, step=step)
@@ -621,8 +621,8 @@ class Logger:
         if self.level == DISABLED:
             return
         for _format in self.output_formats:
-            if isinstance(_format, KVWriter):
-                _format.write(self.name_to_value, self.name_to_excluded, step)
+            if isinstance(_format, KVWriter): # type: ignore
+                _format.write(self.name_to_value, self.name_to_excluded, step) # type: ignore
 
         self.name_to_value.clear()
         self.name_to_count.clear()

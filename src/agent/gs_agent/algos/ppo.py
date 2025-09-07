@@ -17,6 +17,8 @@ from gs_agent.modules.models import NetworkFactory
 from gs_agent.modules.policies import GaussianPolicy
 
 _DEFAULT_DEVICE: Final[torch.device] = torch.device("cpu")
+"""Default device for the algorithm."""
+
 _DEQUE_MAXLEN: Final[int] = 100
 """Max length of the deque for storing episode statistics."""
 

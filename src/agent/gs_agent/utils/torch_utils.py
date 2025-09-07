@@ -9,7 +9,7 @@ def get_activation(activation: str | type[nn.Module] | nn.Module) -> nn.Module:
         return activation
 
     # If they passed in a class (e.g. nn.ReLU), instantiate it
-    if isinstance(activation, type) and issubclass(activation, nn.Module):
+    if isinstance(activation, type) and issubclass(activation, nn.Module):  # type: ignore
         return activation()
 
     # Otherwise assume it's a string

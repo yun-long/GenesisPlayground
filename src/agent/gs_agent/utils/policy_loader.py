@@ -18,7 +18,7 @@ def load_latest_experiment(exp_name: str = "goal_reach", algo: str = "gsppo") ->
     return log_dir
 
 
-def load_ppo_config(log_dir: str) -> dict:
+def load_ppo_config(log_dir: str) -> dict:  # type: ignore
     """Load training configuration from experiment directory."""
     config_path = os.path.join(log_dir, "ppo_cfg.pkl")
     if not os.path.exists(config_path):

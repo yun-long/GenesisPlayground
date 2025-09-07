@@ -24,7 +24,7 @@ class SO101Robot(BaseGymRobot):
         import os
         # Get the project root directory (assuming this file is in src/env/gs_env/sim/robots/)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
-        robot_xml_path = os.path.join(project_root, "genesis/assets/xml/so101_robot/so101_robot.xml")
+        robot_xml_path = os.path.join(project_root, "assets/so101_robot/so101_robot.xml")
         
         self.entity: Any = scene.add_entity(
             material=gs.materials.Rigid(gravity_compensation=1),
@@ -246,11 +246,11 @@ class SO101Robot(BaseGymRobot):
             return None
 
         return {
-            'joint_positions': joint_pos,
-            'end_effector_pos': ee_pos,
-            'end_effector_quat': ee_quat,
-            'target_position': self.target_position.copy(),
-            'target_orientation': self.target_orientation.copy()
+            "joint_positions": joint_pos,
+            "end_effector_pos": ee_pos,
+            "end_effector_quat": ee_quat,
+            "target_position": self.target_position.copy(),
+            "target_orientation": self.target_orientation.copy(),
         }
 
     def is_moving(self) -> bool:

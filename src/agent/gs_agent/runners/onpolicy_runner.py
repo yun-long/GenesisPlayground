@@ -78,7 +78,7 @@ class OnPolicyRunner(BaseRunner):
 
             # Regular checkpointing
             if episode % self.args.save_interval == 0:
-                self._save_checkpoint(f"checkpoint_{episode}.pt")
+                self._save_checkpoint(Path(f"checkpoint_{episode}.pt"))
 
         # Training summary
         training_time = time.time() - start_time
