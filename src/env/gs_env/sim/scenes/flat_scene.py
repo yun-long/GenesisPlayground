@@ -1,8 +1,8 @@
 from typing import Any
 
+import genesis as gs
 import torch
 
-import genesis as gs
 from gs_env.common.bases.base_scene import BaseSimScene
 from gs_env.sim.scenes.config.schema import FlatSceneArgs
 

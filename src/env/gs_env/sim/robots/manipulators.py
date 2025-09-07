@@ -1,10 +1,10 @@
 from typing import Any
 
+import genesis as gs
 import torch
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
 from gymnasium import spaces
 
-import genesis as gs
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
 from gs_env.common.bases.base_robot import BaseGymRobot
 from gs_env.sim.robots.config.schema import (
     CtrlType,
@@ -138,14 +138,14 @@ class ManipulatorBase(BaseGymRobot):
                     action = JointPosAction(joint_pos=action, gripper_width=0.0)
                 case CtrlType.EE_POSE_ABS:
                     action = EEPoseAbsAction(
-                        ee_link_pos=action[:, :3],
-                        ee_link_quat=action[:, 3:7],
+                        ee_link_pos=action[..., :3],
+                        ee_link_quat=action[..., 3:7],
                         gripper_width=0.0,
                     )
                 case CtrlType.EE_POSE_REL:
                     action = EEPoseRelAction(
-                        ee_link_pos_delta=action[:, :3],
-                        ee_link_ang_delta=action[:, 3:6],
+                        ee_link_pos_delta=action[..., :3],
+                        ee_link_ang_delta=action[..., 3:6],
                         gripper_width=0.0,
                     )
         self._dispatch[self._args.ctrl_type](action)
@@ -185,6 +185,9 @@ class ManipulatorBase(BaseGymRobot):
             max_samples=10,  # number of IK samples
             max_solver_iters=20,  # maximum solver iterations
         )
+        q_pos[:, self._fingers_dof] = torch.tensor(
+            [act.gripper_width, act.gripper_width], device=self._device
+        )
         self._robot_entity.control_dofs_position(position=q_pos)
 
     def _apply_ee_pose_rel(self, act: EEPoseRelAction) -> None:
@@ -221,6 +224,10 @@ class ManipulatorBase(BaseGymRobot):
             @ delta_pose.unsqueeze(-1)
         ).squeeze(-1)
         return self._robot_entity.get_qpos() + delta_joint_pos
+
+    @property
+    def joint_positions(self) -> torch.Tensor:
+        return self._robot_entity.get_qpos()
 
     @property
     def base_pos(self) -> torch.Tensor:
