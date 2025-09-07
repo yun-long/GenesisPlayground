@@ -56,7 +56,7 @@ class GenesisEnvWrapper(BaseEnvWrapper):
         return next_obs, reward, terminated, truncated, extra_infos
 
     def get_observations(self) -> torch.Tensor:
-        return self._curr_obs
+        return self.env.get_observations()
 
     @property
     def action_dim(self) -> int:

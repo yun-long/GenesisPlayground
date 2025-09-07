@@ -1,4 +1,5 @@
 import genesis as gs
+
 from gs_env.sim.scenes.config.schema import (
     FlatSceneArgs,
     SceneArgs,
