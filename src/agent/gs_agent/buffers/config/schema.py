@@ -15,6 +15,19 @@ class GAEBufferKey(str, Enum):
     RETURNS = "RETURNS"
 
 
+class BCBufferKey(str, Enum):
+    OBSERVATIONS = "OBSERVATIONS"
+    ACTIONS = "ACTIONS"
+    REWARDS = "REWARDS"
+    DONES = "DONES"
+    NEXT_OBSERVATIONS = "NEXT_OBSERVATIONS"
+
+
 class GAEBufferArgs(BaseModel):
+    model_config = genesis_pydantic_config(frozen=True)
+    pass
+
+
+class BCBufferArgs(BaseModel):
     model_config = genesis_pydantic_config(frozen=True)
     pass
