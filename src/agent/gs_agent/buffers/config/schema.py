@@ -18,9 +18,6 @@ class GAEBufferKey(str, Enum):
 class BCBufferKey(str, Enum):
     OBSERVATIONS = "OBSERVATIONS"
     ACTIONS = "ACTIONS"
-    REWARDS = "REWARDS"
-    DONES = "DONES"
-    NEXT_OBSERVATIONS = "NEXT_OBSERVATIONS"
 
 
 class GAEBufferArgs(BaseModel):

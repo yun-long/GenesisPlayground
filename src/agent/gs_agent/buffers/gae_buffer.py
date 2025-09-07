@@ -141,16 +141,16 @@ class GAEBuffer(BaseBuffer):
         self._idx = 0
         self._final_value = None
 
-    def append(self, transition: dict[str, torch.Tensor]) -> None:
+    def append(self, transition: dict[GAEBufferKey, torch.Tensor]) -> None:
         if self._idx >= self._max_steps:
             raise ValueError(f"Buffer full! Cannot append more than {self._max_steps} steps.")
         idx = self._idx
-        self._buffer[GAEBufferKey.ACTOR_OBS][idx] = transition["obs"]
-        self._buffer[GAEBufferKey.ACTIONS][idx] = transition["act"]
-        self._buffer[GAEBufferKey.REWARDS][idx] = transition["rew"]
-        self._buffer[GAEBufferKey.DONES][idx] = transition["done"]
-        self._buffer[GAEBufferKey.VALUES][idx] = transition["value"]
-        self._buffer[GAEBufferKey.ACTION_LOGPROBS][idx] = transition["log_prob"]
+        self._buffer[GAEBufferKey.ACTOR_OBS][idx] = transition[GAEBufferKey.ACTOR_OBS]
+        self._buffer[GAEBufferKey.ACTIONS][idx] = transition[GAEBufferKey.ACTIONS]
+        self._buffer[GAEBufferKey.REWARDS][idx] = transition[GAEBufferKey.REWARDS]
+        self._buffer[GAEBufferKey.DONES][idx] = transition[GAEBufferKey.DONES]
+        self._buffer[GAEBufferKey.VALUES][idx] = transition[GAEBufferKey.VALUES]
+        self._buffer[GAEBufferKey.ACTION_LOGPROBS][idx] = transition[GAEBufferKey.ACTION_LOGPROBS]
 
         # Increment index
         self._idx += 1
@@ -174,7 +174,7 @@ class GAEBuffer(BaseBuffer):
 
     def minibatch_gen(
         self, num_mini_batches: int, num_epochs: int, shuffle: bool = True
-    ) -> Iterator[dict[str, torch.Tensor]]:
+    ) -> Iterator[dict[GAEBufferKey, torch.Tensor]]:
         advantages, returns = compute_gae(
             rewards=self._buffer[GAEBufferKey.REWARDS],
             values=self._buffer[GAEBufferKey.VALUES],
@@ -205,24 +205,24 @@ class GAEBuffer(BaseBuffer):
                 b_idx = bucket % self._num_envs
                 mini_batch_size = bucket.numel()
                 yield {
-                    "obs": self._buffer[GAEBufferKey.ACTOR_OBS][t_idx, b_idx].reshape(
+                    GAEBufferKey.ACTOR_OBS: self._buffer[GAEBufferKey.ACTOR_OBS][
+                        t_idx, b_idx
+                    ].reshape(mini_batch_size, -1),
+                    GAEBufferKey.ACTIONS: self._buffer[GAEBufferKey.ACTIONS][t_idx, b_idx].reshape(
                         mini_batch_size, -1
                     ),
-                    "act": self._buffer[GAEBufferKey.ACTIONS][t_idx, b_idx].reshape(
+                    GAEBufferKey.REWARDS: self._buffer[GAEBufferKey.REWARDS][t_idx, b_idx].reshape(
                         mini_batch_size, -1
                     ),
-                    "rew": self._buffer[GAEBufferKey.REWARDS][t_idx, b_idx].reshape(
+                    GAEBufferKey.DONES: self._buffer[GAEBufferKey.DONES][t_idx, b_idx].reshape(
                         mini_batch_size, -1
                     ),
-                    "done": self._buffer[GAEBufferKey.DONES][t_idx, b_idx].reshape(
+                    GAEBufferKey.VALUES: self._buffer[GAEBufferKey.VALUES][t_idx, b_idx].reshape(
                         mini_batch_size, -1
                     ),
-                    "value": self._buffer[GAEBufferKey.VALUES][t_idx, b_idx].reshape(
-                        mini_batch_size, -1
-                    ),
-                    "log_prob": self._buffer[GAEBufferKey.ACTION_LOGPROBS][t_idx, b_idx].reshape(
-                        mini_batch_size, -1
-                    ),
-                    "advantage": advantages[t_idx, b_idx].reshape(mini_batch_size, -1),
-                    "returns": returns[t_idx, b_idx].reshape(mini_batch_size, -1),
+                    GAEBufferKey.ACTION_LOGPROBS: self._buffer[GAEBufferKey.ACTION_LOGPROBS][
+                        t_idx, b_idx
+                    ].reshape(mini_batch_size, -1),
+                    GAEBufferKey.ADVANTAGES: advantages[t_idx, b_idx].reshape(mini_batch_size, -1),
+                    GAEBufferKey.RETURNS: returns[t_idx, b_idx].reshape(mini_batch_size, -1),
                 }

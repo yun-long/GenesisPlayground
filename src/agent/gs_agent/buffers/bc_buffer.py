@@ -68,7 +68,7 @@ class BCBuffer(BaseBuffer):
         self._idx = 0
         self._size = 0
 
-    def append(self, transition: dict[str, torch.Tensor]) -> None:
+    def append(self, transition: dict[BCBufferKey, torch.Tensor]) -> None:
         """
         Append a transition to the buffer.
 
@@ -87,8 +87,8 @@ class BCBuffer(BaseBuffer):
             self._size += 1
 
         # Store the transition
-        self._buffer[BCBufferKey.OBSERVATIONS][idx] = transition["obs"]
-        self._buffer[BCBufferKey.ACTIONS][idx] = transition["act"]
+        self._buffer[BCBufferKey.OBSERVATIONS][idx] = transition[BCBufferKey.OBSERVATIONS]
+        self._buffer[BCBufferKey.ACTIONS][idx] = transition[BCBufferKey.ACTIONS]
 
     def is_full(self) -> bool:
         """Check if the buffer is full."""
@@ -100,7 +100,7 @@ class BCBuffer(BaseBuffer):
 
     def minibatch_gen(
         self, batch_size: int, num_epochs: int = 1, shuffle: bool = True
-    ) -> Iterator[dict[str, torch.Tensor]]:
+    ) -> Iterator[dict[BCBufferKey, torch.Tensor]]:
         """
         Generate mini-batches for training.
 
@@ -133,11 +133,8 @@ class BCBuffer(BaseBuffer):
                     continue
 
                 yield {
-                    "obs": self._buffer[BCBufferKey.OBSERVATIONS][batch_indices],
-                    "act": self._buffer[BCBufferKey.ACTIONS][batch_indices],
-                    "rew": self._buffer[BCBufferKey.REWARDS][batch_indices],
-                    "done": self._buffer[BCBufferKey.DONES][batch_indices],
-                    "next_obs": self._buffer[BCBufferKey.NEXT_OBSERVATIONS][batch_indices],
+                    BCBufferKey.OBSERVATIONS: self._buffer[BCBufferKey.OBSERVATIONS][batch_indices],
+                    BCBufferKey.ACTIONS: self._buffer[BCBufferKey.ACTIONS][batch_indices],
                 }
 
     def clear(self) -> None:

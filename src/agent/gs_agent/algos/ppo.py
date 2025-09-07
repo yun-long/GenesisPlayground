@@ -11,6 +11,7 @@ from gs_agent.algos.config.schema import PPOArgs
 from gs_agent.bases.algo import BaseAlgo
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 from gs_agent.bases.policy import Policy
+from gs_agent.buffers.config.schema import GAEBufferKey
 from gs_agent.buffers.gae_buffer import GAEBuffer
 from gs_agent.modules.critics import StateValueFunction
 from gs_agent.modules.models import NetworkFactory
@@ -102,12 +103,12 @@ class PPO(BaseAlgo):
 
                 # all tensors are of shape: [num_envs, dim]
                 transition = {
-                    "obs": obs,
-                    "act": action,
-                    "rew": reward,
-                    "done": terminated,
-                    "value": self._critic(obs),
-                    "log_prob": log_prob,
+                    GAEBufferKey.ACTOR_OBS: obs,
+                    GAEBufferKey.ACTIONS: action,
+                    GAEBufferKey.REWARDS: reward,
+                    GAEBufferKey.DONES: terminated,
+                    GAEBufferKey.VALUES: self._critic(obs),
+                    GAEBufferKey.ACTION_LOGPROBS: log_prob,
                 }
                 self._rollouts.append(transition)
 
@@ -144,13 +145,13 @@ class PPO(BaseAlgo):
             "mean_ep_len": mean_ep_len,
         }
 
-    def train_one_batch(self, mini_batch: dict[str, torch.Tensor]) -> dict[str, Any]:
+    def train_one_batch(self, mini_batch: dict[GAEBufferKey, torch.Tensor]) -> dict[str, Any]:
         """Train one batch of rollouts."""
-        obs = mini_batch["obs"]
-        act = mini_batch["act"]
-        old_log_prob = mini_batch["log_prob"]
-        advantage = mini_batch["advantage"]
-        returns = mini_batch["returns"]
+        obs = mini_batch[GAEBufferKey.ACTOR_OBS]
+        act = mini_batch[GAEBufferKey.ACTIONS]
+        old_log_prob = mini_batch[GAEBufferKey.ACTION_LOGPROBS]
+        advantage = mini_batch[GAEBufferKey.ADVANTAGES]
+        returns = mini_batch[GAEBufferKey.RETURNS]
 
         #
         new_log_prob = self._actor.evaluate_log_prob(obs, act)

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 import torch
 
@@ -13,8 +14,9 @@ class BaseBuffer(ABC):
         """Reset the buffer state."""
         ...
 
+    # TODO: avoid using Any
     @abstractmethod
-    def append(self, transition: dict[str, torch.Tensor]) -> None:
+    def append(self, transition: dict[Any, torch.Tensor]) -> None:
         """Append a transition to the buffer."""
         ...
 
