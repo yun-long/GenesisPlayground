@@ -1,7 +1,6 @@
-from gs_agent.runners.config.schema import RunnerArgs
 from pathlib import Path
 
-
+from gs_agent.runners.config.schema import RunnerArgs
 
 RUNNER_DEFAULT = RunnerArgs(
     total_iterations=100,
