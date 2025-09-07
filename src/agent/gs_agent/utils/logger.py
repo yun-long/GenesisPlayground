@@ -1,18 +1,9 @@
 # =============================================================================
-# Project:      Genesis RL
-# Description:  A logging utility module adapted and extended from
-#               Stable-Baselines3’s logger.py.
-#
 # SB3 Source:   https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/logger.py
 # SB3 License:  MIT License (Copyright (c) 2019–2025 Antonin Raffin et al.)
 #
 # Modifications:
 #   • 2025-06-09, Yunlong Song: Refactored API, added W&B support, cleaned imports.
-#
-# Author:       Genesis AI
-# Created:      2025-06-09
-# License:      MIT
-# SPDX-License-Identifier: MIT
 # =============================================================================
 import datetime
 import json

@@ -1,6 +1,5 @@
 # Contributing to Genesis Playground
 
-Thank you for your interest in contributing! 🎉  
 This document outlines the minimal steps to get started.
 
 ---
@@ -50,8 +49,7 @@ pre-commit run --all-files
 ## 3. Pull Request
 
 - Keep PRs focused and under ~500 LOC when possible.
-- Use Conventional Commits
-  - for commit messages:
+- Use conventional commits for commit messages:
   - [Feat]: add PPO config validation
   - [Fix]: correct reward tensor shape
   - [Docs]: update env README
@@ -59,3 +57,12 @@ pre-commit run --all-files
   - [ ] Lint, typecheck, and tests pass
   - [ ] New code has tests/docs
   - [ ] Examples run successfully
+
+
+> **Note:**
+> AI-generated code should **NOT** be committed directly into Pull Requests.  
+> Please review, refactor, and ensure it follows our coding guidelines and project style before submitting.
+
+## 4. Acknowledgement
+
+Thank you for your interest in contributing! 🎉  
