@@ -77,18 +77,15 @@ class BCBuffer(BaseBuffer):
                 - 'obs': Current observation [obs_size]
                 - 'act': Action taken [action_size]
         """
-        if self._size >= self._max_size:
-            # If buffer is full, overwrite oldest data (circular buffer)
-            idx = self._idx
-            self._idx = (self._idx + 1) % self._max_size
-        else:
-            idx = self._idx
-            self._idx += 1
-            self._size += 1
+        idx = self._idx % self._max_size
 
         # Store the transition
         self._buffer[BCBufferKey.OBSERVATIONS][idx] = transition[BCBufferKey.OBSERVATIONS]
         self._buffer[BCBufferKey.ACTIONS][idx] = transition[BCBufferKey.ACTIONS]
+
+        # increment index
+        self._idx += 1
+        self._size = min(self._size + 1, self._max_size)
 
     def is_full(self) -> bool:
         """Check if the buffer is full."""
