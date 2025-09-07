@@ -12,6 +12,7 @@ class OptimizerType(GenesisEnum):
 
 class AlgorithmType(GenesisEnum):
     PPO = "PPO"
+    BC = "BC"
 
 
 class PPOArgs(BaseModel):
@@ -55,4 +56,30 @@ class PPOArgs(BaseModel):
     weight_decay: NonNegativeFloat = 0.0
 
 
-AlgorithmArgs = PPOArgs
+class BCArgs(BaseModel):
+    """Configuration for BC algorithm."""
+
+    model_config = genesis_pydantic_config(frozen=True)
+
+    # Algorithm type
+    algorithm_type: AlgorithmType = AlgorithmType.BC
+
+    # Network architecture
+    policy_backbone: NetworkBackboneConfig = MLPConfig()
+    critic_backbone: NetworkBackboneConfig = MLPConfig()
+
+    # Learning rates
+    lr: PositiveFloat = 3e-4
+    """Policy learning rate"""
+
+    # Training
+    num_epochs: NonNegativeInt = 10
+    num_mini_batches: NonNegativeInt = 4
+    rollout_length: NonNegativeInt = 1000
+
+    # Optimizer
+    optimizer_type: OptimizerType = OptimizerType.ADAM
+    weight_decay: NonNegativeFloat = 0.0
+
+
+AlgorithmArgs = PPOArgs | BCArgs
