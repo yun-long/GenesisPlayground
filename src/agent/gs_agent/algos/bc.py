@@ -13,7 +13,7 @@ from gs_agent.bases.policy import Policy
 from gs_agent.buffers.bc_buffer import BCBuffer
 from gs_agent.buffers.config.schema import BCBufferKey
 from gs_agent.modules.models import NetworkFactory
-from gs_agent.modules.policies import GaussianPolicy, DeterministicPolicy
+from gs_agent.modules.policies import DeterministicPolicy, GaussianPolicy
 
 _DEFAULT_DEVICE: Final[torch.device] = torch.device("cpu")
 """Default device for the algorithm."""

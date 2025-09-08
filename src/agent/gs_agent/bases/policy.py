@@ -1,7 +1,6 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Final
 
-import torch
 from torch import nn
 
 from gs_agent.bases.network_backbone import NetworkBackbone

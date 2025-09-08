@@ -1,6 +1,8 @@
+from pathlib import Path
+
 from gs_schemas.base_types import GenesisEnum, genesis_pydantic_config
 from pydantic import BaseModel, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
-from pathlib import Path
+
 from gs_agent.modules.config.schema import MLPConfig, NetworkBackboneConfig
 
 
@@ -73,7 +75,7 @@ class BCArgs(BaseModel):
     """Policy learning rate"""
 
     # Teacher path
-    teacher_path: Path 
+    teacher_path: Path
 
     # Training
     num_epochs: NonNegativeInt = 10

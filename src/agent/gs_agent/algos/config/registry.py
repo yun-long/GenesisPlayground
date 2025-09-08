@@ -1,5 +1,6 @@
-from gs_agent.algos.config.schema import BCArgs, OptimizerType, PPOArgs
 from pathlib import Path
+
+from gs_agent.algos.config.schema import BCArgs, OptimizerType, PPOArgs
 from gs_agent.modules.config.registry import DEFAULT_MLP
 
 # default PPO config
