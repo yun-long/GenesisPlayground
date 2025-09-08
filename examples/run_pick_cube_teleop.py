@@ -11,12 +11,13 @@ Usage:
     python src/env/gs_env/scripts/run_pick_cube_teleop.py
 """
 
-import genesis as gs
 import torch
 from gs_agent.wrappers.teleop_wrapper import KeyboardWrapper
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.envs.config.registry import EnvArgsRegistry
 from gs_env.sim.envs.manipulation.pick_cube_env import PickCubeEnv
+
+import genesis as gs
 
 
 # todo teleop
@@ -74,7 +75,7 @@ def main() -> None:
 
                 # Check for quit command
                 if (
-                    hasattr(teleop_wrapper, 'last_command')
+                    hasattr(teleop_wrapper, "last_command")
                     and teleop_wrapper.last_command
                     and hasattr(teleop_wrapper.last_command, "quit_teleop")
                     and teleop_wrapper.last_command.quit_teleop

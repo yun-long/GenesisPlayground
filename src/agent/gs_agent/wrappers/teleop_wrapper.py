@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pynput import keyboard
+from pynput import keyboard  # type: ignore
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
@@ -291,7 +291,7 @@ class KeyboardWrapper(BaseEnvWrapper):
     #             obs = self._convert_observation_to_dict()
     #             if obs is not None:
     #                 self.current_position = obs["end_effector_pos"].copy()
-    #                 from scipy.spatial.transform import Rotation as R
+    #                 from scipy.spatial.transform import Rotation as R  # type: ignore
 
     #                 quat = obs["end_effector_quat"]
     #                 rot = R.from_quat(quat)
@@ -312,7 +312,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         obs = self._convert_observation_to_dict()
         if obs is None:
             return
-        from scipy.spatial.transform import Rotation as R
+        from scipy.spatial.transform import Rotation as R  # type: ignore
 
         # Extract position and orientation from ee_pose (which contains both)
         ee_pose = obs["ee_pose"]
@@ -624,12 +624,12 @@ class KeyboardWrapper(BaseEnvWrapper):
         step_data: TrajectoryStep = {
             "timestamp": time.time() - (self.recording_start_time or 0),
             "command": {
-                "position": command.position.clone().detach()
+                "position": command.position.clone().detach()  # type: ignore
                 if hasattr(command.position, "clone")
-                else command.position.copy(),  # type: ignore
-                "orientation": command.orientation.clone().detach()
+                else command.position.copy(),
+                "orientation": command.orientation.clone().detach()  # type: ignore
                 if hasattr(command.orientation, "clone")
-                else command.orientation.copy(),  # type: ignore
+                else command.orientation.copy(),
                 "gripper_close": command.gripper_close,
                 "reset_scene": command.reset_scene,
                 "quit_teleop": command.quit_teleop,

@@ -3,11 +3,12 @@
 Simple trajectory replay script using teleop wrapper.
 """
 
-import genesis as gs
 import torch
 from gs_agent.wrappers.teleop_wrapper import KeyboardWrapper
-from gs_env.sim.envs.manipulation.pick_cube_env import PickCubeEnv
 from gs_env.sim.envs.config.registry import EnvArgsRegistry
+from gs_env.sim.envs.manipulation.pick_cube_env import PickCubeEnv
+
+import genesis as gs
 
 
 def main() -> None:
@@ -29,7 +30,7 @@ def main() -> None:
         movement_speed=0.01,
         rotation_speed=0.05,
     )
-    env = PickCubeEnv(args=EnvArgsRegistry['pick_cube_default'], device=torch.device('cpu'))
+    env = PickCubeEnv(args=EnvArgsRegistry["pick_cube_default"], device=torch.device("cpu"))
     teleop_wrapper.set_environment(env)  # Set env using new method
 
     # Replay the latest trajectory

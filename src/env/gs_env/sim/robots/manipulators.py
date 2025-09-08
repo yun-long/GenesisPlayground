@@ -5,7 +5,7 @@ import torch
 from gymnasium import spaces
 
 import genesis as gs
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink  # type: ignore
 from gs_env.common.bases.base_robot import BaseGymRobot
 from gs_env.sim.robots.config.schema import (
     CtrlType,
@@ -20,7 +20,7 @@ class ManipulatorBase(BaseGymRobot):
     def __init__(
         self,
         num_envs: int,
-        scene: gs.Scene,
+        scene: gs.Scene,  # type: ignore
         args: ManipulatorRobotArgs,
         device: torch.device,
     ) -> None:
@@ -32,8 +32,8 @@ class ManipulatorBase(BaseGymRobot):
         self._args = args
 
         # == Genesis configurations ==
-        material: gs.materials.Rigid = gs.materials.Rigid()
-        morph: gs.morphs.MJCF = gs.morphs.MJCF(
+        material: gs.materials.Rigid = gs.materials.Rigid()  # type: ignore
+        morph: gs.morphs.MJCF = gs.morphs.MJCF(  # type: ignore
             file=args.morph_args.file,
             pos=args.morph_args.pos,
             quat=args.morph_args.quat,
@@ -127,7 +127,9 @@ class ManipulatorBase(BaseGymRobot):
         ).repeat(len(envs_idx), 1)
         self._robot_entity.set_qpos(default_joint_angles, envs_idx=envs_idx)
 
-    def reset_to_pose(self, joint_positions: torch.Tensor | list | np.ndarray) -> None:
+    def reset_to_pose(
+        self, joint_positions: torch.Tensor | list[float] | np.ndarray[Any, np.dtype[np.floating]]
+    ) -> None:
         """Reset robot to a specific joint configuration."""
         if isinstance(joint_positions, list | np.ndarray):
             joint_positions = torch.tensor(
@@ -301,6 +303,10 @@ class ManipulatorBase(BaseGymRobot):
 
 class FrankaRobot(ManipulatorBase):
     def __init__(
-        self, num_envs: int, scene: gs.Scene, args: ManipulatorRobotArgs, device: torch.device
+        self,
+        num_envs: int,
+        scene: gs.Scene,
+        args: ManipulatorRobotArgs,
+        device: torch.device,  # type: ignore
     ) -> None:
         super().__init__(num_envs=num_envs, scene=scene, args=args, device=device)
