@@ -213,7 +213,7 @@ class ManipulatorBase(BaseGymRobot):
         target_pos = act.ee_link_pos.to(self._device)
         target_quat = act.ee_link_quat.to(self._device)
 
-        q_pos = self._robot_entity.inverse_kinematics(
+        q_pos, _ = self._robot_entity.inverse_kinematics(
             link=self._ee_link,
             pos=target_pos,
             quat=target_quat,
