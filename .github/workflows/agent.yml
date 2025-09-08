@@ -1,6 +1,16 @@
 name: gs-agent
 on:
   push:
+    branches:
+      - main
+    paths:
+      - "*"
+      - ".github/**"
+      - "src/agent/**"
+      - "src/schemas/**"
+  pull_request:
+    branches:
+      - main
     paths:
       - "*"
       - ".github/**"

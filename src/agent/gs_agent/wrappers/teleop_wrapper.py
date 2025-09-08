@@ -192,7 +192,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         """Stop keyboard listener."""
         self.running = False
         if self.recording:
-            self.stop_recording()
+            self._stop_recording()
         if self.listener:
             self.listener.stop()
 
@@ -566,6 +566,39 @@ class KeyboardWrapper(BaseEnvWrapper):
     @property
     def num_envs(self) -> int:
         return 1
+
+    def _stop_recording(self) -> None:
+        """Stop recording trajectory data."""
+        if self.recording:
+            self.recording = False
+            print(f"Recording stopped. Captured {len(self.trajectory_data)} steps.")
+            # Could save trajectory data here if needed
+            self.trajectory_data.clear()
+            self.recording_start_time = None
+
+    def _record_trajectory_step(self, command: KeyboardCommand, obs: dict[str, Any]) -> None:
+        """Record a step of trajectory data."""
+        if not self.recording:
+            return
+
+        # Create trajectory step with timestamp
+        current_time = time.time()
+        if self.recording_start_time is None:
+            self.recording_start_time = current_time
+
+        step_data: TrajectoryStep = {
+            "timestamp": current_time - self.recording_start_time,
+            "command": {
+                "position": command.position.copy(),
+                "orientation": command.orientation.copy(),
+                "gripper_close": command.gripper_close,
+                "reset_scene": command.reset_scene,
+                "quit_teleop": command.quit_teleop,
+            },
+            "observation": obs.copy(),
+        }
+
+        self.trajectory_data.append(step_data)
 
     def close(self) -> None:
         """Close the wrapper."""
