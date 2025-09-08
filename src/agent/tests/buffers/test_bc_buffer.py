@@ -54,10 +54,8 @@ def test_append_and_len(buffer: BCBuffer, cfg: dict[str, Any]) -> None:
     batches = list(buffer.minibatch_gen(batch_size=cfg["max_steps"], num_epochs=1, shuffle=False))
     assert len(batches) == 1
     batch = batches[0]
-    assert batch[BCBufferKey.OBSERVATIONS].ndim == 3
-    assert batch[BCBufferKey.ACTIONS].ndim == 3
-    assert batch[BCBufferKey.OBSERVATIONS].shape[1:] == (cfg["num_envs"], cfg["obs_size"])
-    assert batch[BCBufferKey.ACTIONS].shape[1:] == (cfg["num_envs"], cfg["action_size"])
+    assert batch[BCBufferKey.OBSERVATIONS].ndim == 2
+    assert batch[BCBufferKey.ACTIONS].ndim == 2
 
 
 def test_is_full_and_circular_overwrite(cfg: dict[str, Any]) -> None:
@@ -120,11 +118,9 @@ def test_minibatch_sizes_and_epochs(buffer: BCBuffer, cfg: dict[str, Any], shuff
         count += batches_per_epoch
         obs = batch[BCBufferKey.OBSERVATIONS]
         act = batch[BCBufferKey.ACTIONS]
-        assert obs.ndim == 3 and act.ndim == 3
-        assert obs.shape[1] == cfg["num_envs"]
-        assert obs.shape[2] == cfg["obs_size"]
-        assert act.shape[1] == cfg["num_envs"]
-        assert act.shape[2] == cfg["action_size"]
+        assert obs.ndim == 2 and act.ndim == 2
+        assert obs.shape[1] == cfg["obs_size"]
+        assert act.shape[1] == cfg["action_size"]
         assert 1 <= obs.shape[0] <= batch_size
         assert obs.shape[0] == act.shape[0]
         seen_shapes.append((obs.shape[0], act.shape[0]))
