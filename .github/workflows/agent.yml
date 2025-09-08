@@ -9,8 +9,6 @@ on:
       - "src/agent/**"
       - "src/schemas/**"
   pull_request:
-    types:
-      - closed
     paths:
       - "*"
       - ".github/**"
