@@ -9,6 +9,8 @@ on:
       - "src/agent/**"
       - "src/schemas/**"
   pull_request:
+    branches:
+      - main
     paths:
       - "*"
       - ".github/**"
@@ -17,7 +19,6 @@ on:
   merge_group: # only fires if your repo uses merge queue
 jobs:
   gs-agent:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     uses: ./.github/workflows/python-package.yml
     secrets: inherit
     with:

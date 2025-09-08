@@ -17,7 +17,6 @@ on:
   merge_group: # only fires if your repo uses merge queue
 jobs:
   gs-schemas:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     uses: ./.github/workflows/python-package.yml
     secrets: inherit
     with:
