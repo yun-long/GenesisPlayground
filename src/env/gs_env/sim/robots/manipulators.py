@@ -305,7 +305,7 @@ class FrankaRobot(ManipulatorBase):
     def __init__(
         self,
         num_envs: int,
-        scene: gs.Scene,
+        scene: gs.Scene,  # type: ignore
         args: ManipulatorRobotArgs,
         device: torch.device,  # type: ignore
     ) -> None:
