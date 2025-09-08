@@ -72,21 +72,8 @@ BC_DEFAULT = BCArgs(
     lr=3e-4,
     teacher_path=Path(""),
     num_epochs=10,
-    num_mini_batches=4,
+    batch_size=256,
     rollout_length=32,
-    max_buffer_size=1_000_000,
-    optimizer_type=OptimizerType.ADAM,
-    weight_decay=0.0,
-)
-
-BC_PENDULUM_MLP = BCArgs(
-    policy_backbone=DEFAULT_MLP,
-    teacher_backbone=DEFAULT_MLP,
-    lr=3e-4,
-    teacher_path=Path(""),
-    num_epochs=10,
-    num_mini_batches=4,
-    rollout_length=1000,
     max_buffer_size=1_000_000,
     optimizer_type=OptimizerType.ADAM,
     weight_decay=0.0,

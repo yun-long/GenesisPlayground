@@ -92,7 +92,8 @@ class DeterministicPolicy(Policy):
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         """Forward pass of the policy."""
-        action = self.mu(obs)
+        feature = self.backbone(obs)
+        action = self.mu(feature)
         return action
 
 

@@ -73,15 +73,17 @@ class BCArgs(BaseModel):
     # Learning rates
     lr: PositiveFloat = 3e-4
     """Policy learning rate"""
+    max_grad_norm: PositiveFloat = 1.0
 
     # Teacher path
     teacher_path: Path
 
     # Training
     num_epochs: NonNegativeInt = 10
-    num_mini_batches: NonNegativeInt = 4
+    batch_size: NonNegativeInt = 256
     rollout_length: NonNegativeInt = 1000
     max_buffer_size: NonNegativeInt = 1_000_000
+    max_num_batches: NonNegativeInt = 4
 
     # Optimizer
     optimizer_type: OptimizerType = OptimizerType.ADAM

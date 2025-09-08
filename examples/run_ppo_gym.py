@@ -9,7 +9,7 @@ import gymnasium as gym
 import torch
 from gs_agent.algos.config.registry import PPO_PENDULUM_MLP
 from gs_agent.algos.ppo import PPO
-from gs_agent.runners.config.registry import RUNNER_PENDULUM_MLP
+from gs_agent.runners.config.registry import RUNNER_PENDULUM_PPO_MLP
 from gs_agent.runners.onpolicy_runner import OnPolicyRunner
 from gs_agent.utils.logger import configure as logger_configure
 from gs_agent.utils.policy_loader import load_latest_experiment, load_latest_model
@@ -45,7 +45,7 @@ def create_ppo_runner_from_registry() -> OnPolicyRunner:
     # Create PPO runner
     runner = OnPolicyRunner(
         algorithm=ppo,
-        runner_args=RUNNER_PENDULUM_MLP,
+        runner_args=RUNNER_PENDULUM_PPO_MLP,
         device=wrapped_env.device,
     )
     return runner

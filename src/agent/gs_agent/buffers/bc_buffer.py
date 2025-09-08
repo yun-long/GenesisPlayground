@@ -98,7 +98,7 @@ class BCBuffer(BaseBuffer):
         return self._size
 
     def minibatch_gen(
-        self, batch_size: int, num_epochs: int = 1, shuffle: bool = True
+        self, batch_size: int, num_epochs: int = 1, shuffle: bool = True, max_num_batches: int = 4
     ) -> Iterator[dict[BCBufferKey, torch.Tensor]]:
         """
         Generate mini-batches for training.
@@ -114,26 +114,30 @@ class BCBuffer(BaseBuffer):
         if self._size == 0:
             return
 
-        # Create indices for all stored data
-        indices = torch.arange(self._size, device=self._device)
-
+        total_samples = self._size * self._num_envs
+        base_indices = torch.arange(total_samples, device=self._device)
         for _epoch in range(num_epochs):
             if shuffle:
-                perm_indices = indices[torch.randperm(self._size, device=self._device)]
+                perm_indices = base_indices[torch.randperm(total_samples, device=self._device)]
             else:
-                perm_indices = indices
+                perm_indices = base_indices
 
-            # Split into mini-batches
-            for start_idx in range(0, self._size, batch_size):
-                end_idx = min(start_idx + batch_size, self._size)
-                batch_indices = perm_indices[start_idx:end_idx]
+            buckets = torch.split(perm_indices, split_size_or_sections=batch_size)
 
-                if batch_indices.numel() == 0:
+            for bucket in buckets[:max_num_batches]:
+                if bucket.numel() == 0:
                     continue
 
+                t_idx = bucket // self._num_envs
+                b_idx = bucket % self._num_envs
+                mini_batch_size = bucket.numel()
                 yield {
-                    BCBufferKey.OBSERVATIONS: self._buffer[BCBufferKey.OBSERVATIONS][batch_indices],
-                    BCBufferKey.ACTIONS: self._buffer[BCBufferKey.ACTIONS][batch_indices],
+                    BCBufferKey.OBSERVATIONS: self._buffer[BCBufferKey.OBSERVATIONS][
+                        t_idx, b_idx
+                    ].reshape(mini_batch_size, -1),
+                    BCBufferKey.ACTIONS: self._buffer[BCBufferKey.ACTIONS][t_idx, b_idx].reshape(
+                        mini_batch_size, -1
+                    ),
                 }
 
     def clear(self) -> None:

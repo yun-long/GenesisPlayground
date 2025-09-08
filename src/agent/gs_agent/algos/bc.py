@@ -95,19 +95,21 @@ class BC(BaseAlgo):
         with torch.inference_mode():
             # collect rollouts and compute returns & advantages
             for _step in range(num_steps):
-                action = self._teacher(obs, deterministic=True)
+                student_actions = self._actor(obs)
+                teacher_action, _ = self._teacher(obs, deterministic=True)
                 # Step environment
-                next_obs, reward, terminated, truncated, _extra_infos = self.env.step(action)
+                next_obs, reward, terminated, truncated, _extra_infos = self.env.step(
+                    student_actions
+                )
 
                 # TODO: to use different observations for behavior cloning
                 # not share the same observation space with the actor
                 # all tensors are of shape: [num_envs, dim]
                 transition = {
                     BCBufferKey.OBSERVATIONS: obs,
-                    BCBufferKey.ACTIONS: action,
+                    BCBufferKey.ACTIONS: teacher_action,
                 }
                 self._rollouts.append(transition)
-                obs = next_obs
                 # Update episode tracking - handle reward and done sequences
                 # Extract tensors from reward and done objects
                 self._curr_reward_sum += reward.squeeze(-1)
@@ -125,6 +127,8 @@ class BC(BaseAlgo):
                     # Reset tracking
                     self._curr_reward_sum[new_ids] = 0
                     self._curr_ep_len[new_ids] = 0
+
+                obs = next_obs
 
         mean_reward = 0.0
         mean_ep_len = 0.0
@@ -160,8 +164,9 @@ class BC(BaseAlgo):
 
         train_metrics_list: list[dict[str, Any]] = []
         for mini_batch in self._rollouts.minibatch_gen(
-            batch_size=self.cfg.num_mini_batches,
+            batch_size=self.cfg.batch_size,
             num_epochs=self.cfg.num_epochs,
+            max_num_batches=self.cfg.max_num_batches,
         ):
             metrics = self._train_one_batch(mini_batch)
             train_metrics_list.append(metrics)

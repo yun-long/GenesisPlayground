@@ -10,11 +10,18 @@ RUNNER_DEFAULT = RunnerArgs(
 )
 
 
-RUNNER_PENDULUM_MLP = RunnerArgs(
+RUNNER_PENDULUM_PPO_MLP = RunnerArgs(
     total_iterations=500,
     log_interval=10,
     save_interval=100,
     save_path=Path("./logs/ppo_gym_pendulum"),
+)
+
+RUNNER_PENDULUM_BC_MLP = RunnerArgs(
+    total_iterations=500,
+    log_interval=10,
+    save_interval=100,
+    save_path=Path("./logs/bc_gym_pendulum"),
 )
 
 RUNNER_GOAL_REACHING_MLP = RunnerArgs(
