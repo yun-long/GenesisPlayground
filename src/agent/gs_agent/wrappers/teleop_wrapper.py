@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from pynput import keyboard
+from pynput.keyboard import Key, KeyCode
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
@@ -58,15 +59,17 @@ class KeyboardDevice:
         self.listener.stop()
         self.listener.join()
 
-    def on_press(self, key: keyboard.Key) -> None:
-        with self.lock:
-            self.pressed_keys.add(key)
+    def on_press(self, key: Key | KeyCode | None) -> None:
+        if key is not None:
+            with self.lock:
+                self.pressed_keys.add(key)
 
-    def on_release(self, key: keyboard.Key) -> None:
-        with self.lock:
-            self.pressed_keys.discard(key)
+    def on_release(self, key: Key | KeyCode | None) -> None:
+        if key is not None:
+            with self.lock:
+                self.pressed_keys.discard(key)
 
-    def get_cmd(self) -> set[keyboard.Key]:
+    def get_cmd(self) -> set[Key | KeyCode]:
         return self.pressed_keys
 
 
@@ -118,18 +121,12 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.clients["keyboard"].start()
 
         # Initialize current pose from environment if available
-        # Note: This might fail if environment isn't fully initialized yet
-        # The pose will be initialized later when needed
-
-    def set_environment(self, env: Any) -> None:
-        """Set the environment after creation."""
-        self.env = env
-
-        self.target_position, self.target_orientation = self.env.get_ee_pose()
-        self.target_position = self.target_position
-        self.target_orientation = self.target_orientation
-        print("self.target_position", self.target_position.shape)
-        print("self.target_orientation", self.target_orientation.shape)
+        try:
+            self.target_position, self.target_orientation = self.env.get_ee_pose()
+            print("self.target_position", self.target_position.shape)
+            print("self.target_orientation", self.target_orientation.shape)
+        except (AttributeError, RuntimeError):
+            raise RuntimeError("Environment is not fully initialized yet") from None
 
     def start(self) -> None:
         """Start keyboard listener."""
@@ -495,4 +492,15 @@ class KeyboardWrapper(BaseEnvWrapper):
 
     def render(self) -> None:
         """Render the environment."""
+        pass
+
+    def stop_recording(self) -> None:
+        """Stop trajectory recording."""
+        self.recording = False
+        # TODO: Implement trajectory saving logic
+        pass
+
+    def _record_trajectory_step(self, command: Any, obs: dict[str, Any]) -> None:
+        """Record a step in the trajectory."""
+        # TODO: Implement trajectory step recording logic
         pass
