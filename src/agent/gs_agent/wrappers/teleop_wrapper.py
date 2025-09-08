@@ -121,7 +121,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.clients = {}
         self.clients["keyboard"] = KeyboardDevice()
         self.clients["keyboard"].start()
-        
+
         # Track if system is ready for input
         self.system_ready = False
         self.ready_timer = None
@@ -140,13 +140,13 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.target_orientation = self.target_orientation
         print("self.target_position", self.target_position.shape)
         print("self.target_orientation", self.target_orientation.shape)
-        
+
         # Mark system as ready after a short delay to ensure everything is initialized
-        def mark_ready():
+        def mark_ready() -> None:
             time.sleep(self.viewer_init_delay)
             self.system_ready = True
             print("🎮 Keyboard controls are now active!")
-            
+
         self.ready_timer = threading.Thread(target=mark_ready, daemon=True)
         self.ready_timer.start()
 
@@ -213,7 +213,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         if command:
             # Store last command for quit detection
             self.last_command = command
-            
+
             # handle reset and recording
             # If reset command was sent, mark for pose reinitialization in next step
             if command.reset_scene:
@@ -318,16 +318,16 @@ class KeyboardWrapper(BaseEnvWrapper):
         ee_pose = obs["ee_pose"]
         if isinstance(ee_pose, torch.Tensor):
             ee_pose = ee_pose.cpu().numpy()
-        
+
         # Check if ee_pose has the expected structure
         if ee_pose.size == 0:
             print("WARNING: ee_pose is empty, skipping sync")
             return
-        
+
         # Handle different tensor shapes (batch vs single)
         if len(ee_pose.shape) == 2:  # Batch dimension [batch_size, features]
             ee_pose = ee_pose[0]  # Take first (and only) environment
-            
+
         # ee_pose should be [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z]
         if ee_pose.shape[-1] >= 7:  # Has both position and quaternion
             self.current_position = ee_pose[:3].copy()
@@ -349,7 +349,7 @@ class KeyboardWrapper(BaseEnvWrapper):
             # Still allow recording toggle and quit even if not ready
             with self.lock:
                 pressed_keys = self.clients["keyboard"].pressed_keys.copy()
-            
+
             # Handle recording toggle (only on key press, not while held)
             if self.recording_toggle_requested:
                 if self.recording:
@@ -357,7 +357,7 @@ class KeyboardWrapper(BaseEnvWrapper):
                 else:
                     self.start_recording()
                 self.recording_toggle_requested = False
-            
+
             # Allow quit even if not ready
             stop = keyboard.Key.esc in pressed_keys
             if stop:
@@ -368,7 +368,7 @@ class KeyboardWrapper(BaseEnvWrapper):
                     reset_scene=False,
                     quit_teleop=True,
                 )
-            
+
             # Return neutral command if not ready
             return KeyboardCommand(
                 position=self.target_position,
@@ -377,7 +377,7 @@ class KeyboardWrapper(BaseEnvWrapper):
                 reset_scene=False,
                 quit_teleop=False,
             )
-        
+
         with self.lock:
             pressed_keys = self.clients["keyboard"].pressed_keys.copy()
         # reset scene:
@@ -387,7 +387,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         # TODO: reset scene
         if reset_flag:
             # Reset the environment
-            if hasattr(self, "_env") and hasattr(self._env, 'reset_idx'):
+            if hasattr(self, "_env") and hasattr(self._env, "reset_idx"):
                 self._env.reset_idx(torch.IntTensor([0]))
 
         # stop teleoperation
@@ -473,7 +473,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         # #     self._initialize_current_pose()
         # ee_pos, ee_quat = self.env.get_ee_pose()
         # print(ee_pos, ee_quat)
-
 
         # # If still missing but special keys exist, send special-only command
         # if self.current_position is None or self.current_orientation is None:
@@ -577,13 +576,13 @@ class KeyboardWrapper(BaseEnvWrapper):
         pass
 
     # Trajectory Recording and Replay Methods
-    
+
     def start_recording(self) -> None:
         """Start recording trajectory data."""
         if self.recording:
             print("⚠️  Already recording trajectory!")
             return
-            
+
         self.recording = True
         self.trajectory_data = []
         self.recording_start_time = time.time()
@@ -595,23 +594,23 @@ class KeyboardWrapper(BaseEnvWrapper):
         if not self.recording:
             print("⚠️  Not currently recording!")
             return
-            
+
         self.recording = False
         recording_duration = time.time() - (self.recording_start_time or 0)
-        
+
         print(f"🔴 Stopping recording... data_len={len(self.trajectory_data)}")
-        
+
         if not self.trajectory_data:
             print("⚠️  No trajectory data recorded!")
             return
-            
+
         # Save trajectory to file
         filename = self._save_trajectory()
-        print(f"✅ Stopped recording trajectory!")
+        print("✅ Stopped recording trajectory!")
         print(f"   Duration: {recording_duration:.2f} seconds")
         print(f"   Steps recorded: {len(self.trajectory_data)}")
         print(f"   Saved to: {filename}")
-        
+
         # Clear trajectory data
         self.trajectory_data = []
         self.recording_start_time = None
@@ -620,13 +619,17 @@ class KeyboardWrapper(BaseEnvWrapper):
         """Record a single trajectory step."""
         if not self.recording:
             return
-            
+
         # Optimize recording by reducing data copying
         step_data: TrajectoryStep = {
             "timestamp": time.time() - (self.recording_start_time or 0),
             "command": {
-                "position": command.position.clone().detach() if hasattr(command.position, 'clone') else command.position.copy(),
-                "orientation": command.orientation.clone().detach() if hasattr(command.orientation, 'clone') else command.orientation.copy(),
+                "position": command.position.clone().detach()
+                if hasattr(command.position, "clone")
+                else command.position.copy(),  # type: ignore
+                "orientation": command.orientation.clone().detach()
+                if hasattr(command.orientation, "clone")
+                else command.orientation.copy(),  # type: ignore
                 "gripper_close": command.gripper_close,
                 "reset_scene": command.reset_scene,
                 "quit_teleop": command.quit_teleop,
@@ -635,10 +638,10 @@ class KeyboardWrapper(BaseEnvWrapper):
                 "ee_pose": obs.get("ee_pose"),
                 "cube_pos": obs.get("cube_pos"),
                 "cube_quat": obs.get("cube_quat"),
-            }
+            },
         }
         self.trajectory_data.append(step_data)
-        
+
         # Debug output every 50 steps to reduce overhead
         if len(self.trajectory_data) % 50 == 0:
             print(f"   📝 Recorded {len(self.trajectory_data)} steps...")
@@ -647,16 +650,16 @@ class KeyboardWrapper(BaseEnvWrapper):
         """Save trajectory data to file."""
         # Create trajectories directory if it doesn't exist
         os.makedirs(TRAJECTORY_DIR, exist_ok=True)
-        
+
         # Generate filename with timestamp
         timestamp = int(time.time())
         filename = f"{TRAJECTORY_FILENAME_PREFIX}{timestamp}{TRAJECTORY_FILE_EXTENSION}"
         filepath = os.path.join(TRAJECTORY_DIR, filename)
-        
+
         # Save trajectory data
         with open(filepath, "wb") as f:
             pickle.dump(self.trajectory_data, f)
-            
+
         return filepath
 
     def _load_latest_trajectory(self) -> list[TrajectoryStep] | None:
@@ -664,22 +667,25 @@ class KeyboardWrapper(BaseEnvWrapper):
         if not os.path.exists(TRAJECTORY_DIR):
             print("⚠️  No trajectories directory found!")
             return None
-            
+
         # Find all trajectory files
         trajectory_files = [
-            f for f in os.listdir(TRAJECTORY_DIR)
+            f
+            for f in os.listdir(TRAJECTORY_DIR)
             if f.startswith(TRAJECTORY_FILENAME_PREFIX) and f.endswith(TRAJECTORY_FILE_EXTENSION)
         ]
-        
+
         if not trajectory_files:
             print("⚠️  No trajectory files found!")
             return None
-            
+
         # Sort by modification time and get the latest
-        trajectory_files.sort(key=lambda x: os.path.getmtime(os.path.join(TRAJECTORY_DIR, x)), reverse=True)
+        trajectory_files.sort(
+            key=lambda x: os.path.getmtime(os.path.join(TRAJECTORY_DIR, x)), reverse=True
+        )
         latest_file = trajectory_files[0]
         filepath = os.path.join(TRAJECTORY_DIR, latest_file)
-        
+
         # Load trajectory data
         try:
             with open(filepath, "rb") as f:
@@ -694,36 +700,36 @@ class KeyboardWrapper(BaseEnvWrapper):
     def replay_latest_trajectory(self) -> None:
         """Replay the most recent trajectory."""
         print("🎬 Starting trajectory replay...")
-        
+
         # Set running flag to allow replay
         self.running = True
-        
+
         try:
             # Load trajectory data
             trajectory_data = self._load_latest_trajectory()
             if trajectory_data is None:
                 return
-                
+
             if not trajectory_data:
                 print("⚠️  Empty trajectory data!")
                 return
-                
+
             print(f"🎯 Replaying {len(trajectory_data)} steps...")
-            
+
             # Reset environment to initial state
-            if hasattr(self, "_env") and hasattr(self._env, 'reset_idx'):
+            if hasattr(self, "_env") and hasattr(self._env, "reset_idx"):
                 self._env.reset_idx(torch.IntTensor([0]))
             print("🔄 Environment reset to initial state")
-            
+
             # Wait for viewer to initialize
             time.sleep(self.viewer_init_delay)
-            
+
             # Replay each step
             for i, step_data in enumerate(trajectory_data):
                 if not self.running:
                     print("⏹️  Replay stopped by user")
                     break
-                    
+
                 # Create command from recorded data
                 cmd_data = step_data["command"]
                 command = KeyboardCommand(
@@ -733,25 +739,25 @@ class KeyboardWrapper(BaseEnvWrapper):
                     reset_scene=cmd_data["reset_scene"],
                     quit_teleop=cmd_data["quit_teleop"],
                 )
-                
+
                 # Apply command to environment
                 if command:
                     self._env.apply_action(command)
                 else:
                     self._env.apply_action(torch.tensor([]))
-                
+
                 # Step multiple times per command for smooth replay
                 for _ in range(self.replay_steps_per_command):
                     if not self.running:
                         break
                     time.sleep(0.01)  # 100Hz simulation rate for faster replay
-                    
+
                 # Print progress
                 if i % 50 == 0:
                     print(f"   Step {i}/{len(trajectory_data)}")
-                    
+
             print("✅ Trajectory replay completed!")
-            
+
         finally:
             # Always reset running flag
             self.running = False

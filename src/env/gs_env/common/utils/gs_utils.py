@@ -10,7 +10,7 @@ class ToGSConvertible(Protocol[T_cv]):
     def to_gs(self) -> T_cv: ...
 
 
-def to_gs_and_assert(obj: Any, expected_type: type) -> T_cv:
+def to_gs_and_assert(obj: Any, expected_type: type) -> object:
     assert isinstance(obj, ToGSConvertible), (
         f"Object of type {type(obj).__name__} must have a 'to_gs()' method"
     )

@@ -1,11 +1,11 @@
 from typing import Any
 
-import genesis as gs
 import numpy as np
 import torch
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
 from gymnasium import spaces
 
+import genesis as gs
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
 from gs_env.common.bases.base_robot import BaseGymRobot
 from gs_env.sim.robots.config.schema import (
     CtrlType,
@@ -129,26 +129,33 @@ class ManipulatorBase(BaseGymRobot):
 
     def reset_to_pose(self, joint_positions: torch.Tensor | list | np.ndarray) -> None:
         """Reset robot to a specific joint configuration."""
-        if isinstance(joint_positions, (list, np.ndarray)):
-            joint_positions = torch.tensor(joint_positions, dtype=torch.float32, device=self._device)
-        
+        if isinstance(joint_positions, list | np.ndarray):
+            joint_positions = torch.tensor(
+                joint_positions, dtype=torch.float32, device=self._device
+            )
+
         # Ensure the tensor has the right shape (batch_size, num_joints)
         if joint_positions.dim() == 1:
             joint_positions = joint_positions.unsqueeze(0)
-        
+
         # If only arm joints are provided, pad with default gripper values
         if joint_positions.shape[1] < len(self._default_joint_angles):
             arm_joints = joint_positions
             # Get gripper joint values, handling potential duplicates
-            gripper_values = list(self._args.default_gripper_dof.values()) if self._args.default_gripper_dof else []
+            gripper_values = (
+                list(self._args.default_gripper_dof.values())
+                if self._args.default_gripper_dof
+                else []
+            )
             # Remove duplicates while preserving order
             gripper_values = list(dict.fromkeys(gripper_values))
-            gripper_joints = torch.tensor(
-                gripper_values,
-                dtype=torch.float32, device=self._device
-            ).unsqueeze(0).repeat(joint_positions.shape[0], 1)
+            gripper_joints = (
+                torch.tensor(gripper_values, dtype=torch.float32, device=self._device)
+                .unsqueeze(0)
+                .repeat(joint_positions.shape[0], 1)
+            )
             joint_positions = torch.cat([arm_joints, gripper_joints], dim=1)
-        
+
         # Create envs_idx for all environments
         envs_idx = torch.arange(joint_positions.shape[0], device=self._device)
         self._robot_entity.set_qpos(joint_positions, envs_idx=envs_idx)
@@ -282,8 +289,10 @@ class ManipulatorBase(BaseGymRobot):
         # Use object.__getattribute__ to avoid recursion with hasattr
         try:
             return object.__getattribute__(self._robot_entity, item)
-        except AttributeError:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+        except AttributeError as err:
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{item}'"
+            ) from err
 
     @property
     def ctrl_type(self) -> CtrlType:

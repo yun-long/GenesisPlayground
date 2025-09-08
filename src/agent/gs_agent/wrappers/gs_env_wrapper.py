@@ -12,7 +12,7 @@ TGSEnv = TypeVar("TGSEnv")
 class GenesisEnvWrapper(BaseEnvWrapper):
     def __init__(
         self,
-        env: TGSEnv,
+        env: object,
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(env, device)
