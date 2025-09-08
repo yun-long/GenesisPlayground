@@ -40,8 +40,6 @@ def main() -> None:
 
     try:
         # Create teleop wrapper first (without environment)
-        env = create_gs_env()
-
         print("Creating teleop wrapper...")
         teleop_wrapper = KeyboardWrapper(
             env=None,
@@ -54,9 +52,16 @@ def main() -> None:
         teleop_wrapper.start()  # type: ignore
 
         # Create task environment AFTER teleop wrapper is running
+        env = create_gs_env()
         teleop_wrapper.set_environment(env)
         print("\n" + "=" * 50)
         print("Pick Cube TELEOP SYSTEM READY")
+        print("=" * 50)
+        print("📝 TRAJECTORY RECORDING INSTRUCTIONS:")
+        print("   1. Press 'r' to start recording (anytime)")
+        print("   2. Move robot with arrow keys, n/m, space")
+        print("   3. Press 'r' again to stop recording and save")
+        print("   💡 Recording works from any state now!")
         print("=" * 50)
 
         # Run the main control loop in the main thread (Genesis viewer requires this)
@@ -68,13 +73,14 @@ def main() -> None:
                 step_count += 1
 
                 # Check for quit command
-                # if (
-                #     teleop_wrapper.last_command
-                #     and hasattr(teleop_wrapper.last_command, "quit_teleop")
-                #     and teleop_wrapper.last_command.quit_teleop
-                # ):
-                #     print("Quit command received, exiting...")
-                #     break
+                if (
+                    hasattr(teleop_wrapper, 'last_command')
+                    and teleop_wrapper.last_command
+                    and hasattr(teleop_wrapper.last_command, "quit_teleop")
+                    and teleop_wrapper.last_command.quit_teleop
+                ):
+                    print("Quit command received, exiting...")
+                    break
 
                 # Safety check - exit after 1 hour of running
                 if step_count > 180000:  # 1 hour at 50Hz

@@ -190,7 +190,7 @@ class PickCubeEnv(BaseEnv):
         self.scene.clear_debug_objects()
 
         # Reset robot to natural pose
-        initial_q = np.array([0.0, -0.3, 0.5, 0.0, 0.0, 0.0])
+        initial_q = np.array([0.0, -0.3, 0.5, 0.0, 0.0, 0.0, 0.0])  # Added 7th joint
         self.entities["robot"].reset_to_pose(initial_q)
 
         # Randomize cube position (this will set new target location and draw debug sphere)
