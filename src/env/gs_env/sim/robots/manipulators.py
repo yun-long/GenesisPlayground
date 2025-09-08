@@ -185,10 +185,11 @@ class ManipulatorBase(BaseGymRobot):
             max_samples=10,  # number of IK samples
             max_solver_iters=20,  # maximum solver iterations
         )
-        q_pos[:, self._fingers_dof] = torch.tensor(
-            [act.gripper_width, act.gripper_width], device=self._device
-        )
-        self._robot_entity.control_dofs_position(position=q_pos)
+        if isinstance(q_pos, torch.Tensor):
+            q_pos[:, self._fingers_dof] = torch.tensor(
+                [act.gripper_width, act.gripper_width], device=self._device
+            )
+            self._robot_entity.control_dofs_position(position=q_pos)
 
     def _apply_ee_pose_rel(self, act: EEPoseRelAction) -> None:
         """
