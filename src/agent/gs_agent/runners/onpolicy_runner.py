@@ -42,9 +42,9 @@ class OnPolicyRunner(BaseRunner):
         self.save_dir: Final[Path] = self.args.save_path / datetime.datetime.now().strftime(
             "%Y%m%d_%H%M%S"
         )
-        self.args.save_path.mkdir(parents=True, exist_ok=True)
-        self.checkpoint_dir: Final[Path] = self.args.save_path / "checkpoints"
-        self.checkpoint_dir.mkdir(exist_ok=True)
+        # self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_dir: Final[Path] = self.save_dir / "checkpoints"
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"OnPolicyRunner initialized with save path: {self.args.save_path}")
 
@@ -80,7 +80,7 @@ class OnPolicyRunner(BaseRunner):
 
             # Regular checkpointing
             if iteration % self.args.save_interval == 0:
-                self._save_checkpoint(Path(f"checkpoint_{iteration}.pt"))
+                self._save_checkpoint(Path(f"checkpoint_{iteration:04d}.pt"))
 
         # Training summary
         training_time = time.time() - start_time
