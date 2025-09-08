@@ -1,6 +1,6 @@
 from gs_schemas.base_types import GenesisEnum, genesis_pydantic_config
 from pydantic import BaseModel, Field, NonNegativeFloat, NonNegativeInt, PositiveFloat
-
+from pathlib import Path
 from gs_agent.modules.config.schema import MLPConfig, NetworkBackboneConfig
 
 
@@ -66,16 +66,20 @@ class BCArgs(BaseModel):
 
     # Network architecture
     policy_backbone: NetworkBackboneConfig = MLPConfig()
-    critic_backbone: NetworkBackboneConfig = MLPConfig()
+    teacher_backbone: NetworkBackboneConfig = MLPConfig()
 
     # Learning rates
     lr: PositiveFloat = 3e-4
     """Policy learning rate"""
 
+    # Teacher path
+    teacher_path: Path 
+
     # Training
     num_epochs: NonNegativeInt = 10
     num_mini_batches: NonNegativeInt = 4
     rollout_length: NonNegativeInt = 1000
+    max_buffer_size: NonNegativeInt = 1_000_000
 
     # Optimizer
     optimizer_type: OptimizerType = OptimizerType.ADAM

@@ -13,7 +13,7 @@ from gs_agent.bases.policy import Policy
 from gs_agent.buffers.bc_buffer import BCBuffer
 from gs_agent.buffers.config.schema import BCBufferKey
 from gs_agent.modules.models import NetworkFactory
-from gs_agent.modules.policies import GaussianPolicy
+from gs_agent.modules.policies import GaussianPolicy, DeterministicPolicy
 
 _DEFAULT_DEVICE: Final[torch.device] = torch.device("cpu")
 """Default device for the algorithm."""
@@ -35,7 +35,7 @@ class BC(BaseAlgo):
         self._action_dim = self.env.action_dim
         #
         self._num_envs = self.env.num_envs
-        self._num_steps = cfg.rollout_length
+        self._num_steps = cfg.max_buffer_size
         #
 
         self.current_iter = 0
@@ -48,6 +48,9 @@ class BC(BaseAlgo):
 
         # Build actor network
         self._build_actor()
+        if not cfg.teacher_path.is_file():
+            raise ValueError("Teacher path must be a file.")
+        self._build_teacher(cfg.teacher_path)
         self._build_rollouts()
 
     def _build_actor(self) -> None:
@@ -58,13 +61,24 @@ class BC(BaseAlgo):
             device=self.device,
         )
         print(f"Policy backbone: {policy_backbone}")
-        self._actor = GaussianPolicy(
+        self._actor = DeterministicPolicy(
             policy_backbone=policy_backbone,
             action_dim=self._action_dim,
         ).to(self.device)
         self._actor_optimizer = torch.optim.Adam(self._actor.parameters(), lr=self.cfg.lr)
 
-        # TODO: Load teacher policy
+    def _build_teacher(self, teacher_path: Path) -> None:
+        teacher_backbone = NetworkFactory.create_network(
+            network_backbone_args=self.cfg.teacher_backbone,
+            input_dim=self._actor_obs_dim,
+            output_dim=self._action_dim,
+            device=self.device,
+        )
+        self._teacher = GaussianPolicy(
+            policy_backbone=teacher_backbone,
+            action_dim=self._action_dim,
+        ).to(self.device)
+        self._teacher.load_state_dict(torch.load(teacher_path)["model_state_dict"])
 
     def _build_rollouts(self) -> None:
         self._rollouts = BCBuffer(
@@ -81,7 +95,7 @@ class BC(BaseAlgo):
         with torch.inference_mode():
             # collect rollouts and compute returns & advantages
             for _step in range(num_steps):
-                action = self._actor(obs)
+                action = self._teacher(obs, deterministic=True)
                 # Step environment
                 next_obs, reward, terminated, truncated, _extra_infos = self.env.step(action)
 
@@ -186,7 +200,7 @@ class BC(BaseAlgo):
         self._actor.load_state_dict(checkpoint["model_state_dict"])
         if load_optimizer:
             self._actor_optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self._current_iter = checkpoint["iter"]
+        self.current_iter = checkpoint["iter"]
 
     def train_mode(self) -> None:
         self._actor.train()

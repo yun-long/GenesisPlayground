@@ -1,4 +1,5 @@
-from gs_agent.algos.config.schema import OptimizerType, PPOArgs
+from gs_agent.algos.config.schema import BCArgs, OptimizerType, PPOArgs
+from pathlib import Path
 from gs_agent.modules.config.registry import DEFAULT_MLP
 
 # default PPO config
@@ -58,6 +59,34 @@ PPO_GOAL_REACHING_MLP = PPOArgs(
     num_epochs=10,
     num_mini_batches=4,
     rollout_length=32,
+    optimizer_type=OptimizerType.ADAM,
+    weight_decay=0.0,
+)
+
+
+# gym pendulum BC config
+BC_DEFAULT = BCArgs(
+    policy_backbone=DEFAULT_MLP,
+    teacher_backbone=DEFAULT_MLP,
+    lr=3e-4,
+    teacher_path=Path(""),
+    num_epochs=10,
+    num_mini_batches=4,
+    rollout_length=32,
+    max_buffer_size=1_000_000,
+    optimizer_type=OptimizerType.ADAM,
+    weight_decay=0.0,
+)
+
+BC_PENDULUM_MLP = BCArgs(
+    policy_backbone=DEFAULT_MLP,
+    teacher_backbone=DEFAULT_MLP,
+    lr=3e-4,
+    teacher_path=Path(""),
+    num_epochs=10,
+    num_mini_batches=4,
+    rollout_length=1000,
+    max_buffer_size=1_000_000,
     optimizer_type=OptimizerType.ADAM,
     weight_decay=0.0,
 )

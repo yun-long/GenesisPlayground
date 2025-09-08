@@ -79,12 +79,25 @@ class GaussianPolicy(Policy):
     def get_action_shape(self) -> tuple[int, ...]:
         return (self.action_dim,)
 
+class DeterministicPolicy(Policy):
+    def __init__(self, policy_backbone: NetworkBackbone, action_dim: int) -> None:
+        super().__init__(policy_backbone, action_dim)
+        self.mu = nn.Linear(self.backbone.output_dim, self.action_dim)
+        self._init_params()
+
+    def _init_params(self) -> None:
+        nn.init.xavier_uniform_(self.mu.weight)
+        nn.init.zeros_(self.mu.bias)
+    
+    def forward( self, obs: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the policy.
+        """
+        action = self.mu(obs)
+        return action
 
 # === Categorical Policy === #
 class CategoricalPolicy(Policy):
     # TODO: implement
 
     def __init__(self, policy_backbone: NetworkBackbone, action_dim: int) -> None:
-        """Initialize the categorical policy."""
-        super().__init__(policy_backbone, action_dim)
-        self.logits = nn.Linear(self.backbone.output_dim, self.action_dim)
+        raise NotImplementedError("CategoricalPolicy is not implemented")
