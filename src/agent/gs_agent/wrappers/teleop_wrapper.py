@@ -1,10 +1,12 @@
 import threading
+import time
 from typing import Any
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from pynput import keyboard
+from scipy.spatial.transform import Rotation as R
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
@@ -58,11 +60,11 @@ class KeyboardDevice:
         self.listener.stop()
         self.listener.join()
 
-    def on_press(self, key: keyboard.Key) -> None:
+    def on_press(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
         with self.lock:
             self.pressed_keys.add(key)
 
-    def on_release(self, key: keyboard.Key) -> None:
+    def on_release(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
         with self.lock:
             self.pressed_keys.discard(key)
 
@@ -123,13 +125,16 @@ class KeyboardWrapper(BaseEnvWrapper):
 
     def set_environment(self, env: Any) -> None:
         """Set the environment after creation."""
-        self.env = env
+        # Cannot reassign self.env as it's declared as Final in BaseEnvWrapper
+        # Instead, we'll work with the env passed in __init__
+        if not hasattr(self, "_env_initialized"):
+            self._env_initialized = True
 
-        self.target_position, self.target_orientation = self.env.get_ee_pose()
-        self.target_position = self.target_position
-        self.target_orientation = self.target_orientation
-        print("self.target_position", self.target_position.shape)
-        print("self.target_orientation", self.target_orientation.shape)
+            self.target_position, self.target_orientation = self.env.get_ee_pose()
+            self.target_position = self.target_position
+            self.target_orientation = self.target_orientation
+            print("self.target_position", self.target_position.shape)
+            print("self.target_orientation", self.target_orientation.shape)
 
     def start(self) -> None:
         """Start keyboard listener."""
@@ -173,7 +178,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         """Stop keyboard listener."""
         self.running = False
         if self.recording:
-            self.stop_recording()
+            self._stop_recording()
         if self.listener:
             self.listener.stop()
 
@@ -290,8 +295,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         obs = self._convert_observation_to_dict()
         if obs is None:
             return
-        from scipy.spatial.transform import Rotation as R
-
         self.current_position = obs["end_effector_pos"].copy()
         self.current_orientation = R.from_quat(obs["end_effector_quat"]).as_euler("xyz")
 
@@ -488,6 +491,39 @@ class KeyboardWrapper(BaseEnvWrapper):
     @property
     def num_envs(self) -> int:
         return 1
+
+    def _stop_recording(self) -> None:
+        """Stop recording trajectory data."""
+        if self.recording:
+            self.recording = False
+            print(f"Recording stopped. Captured {len(self.trajectory_data)} steps.")
+            # Could save trajectory data here if needed
+            self.trajectory_data.clear()
+            self.recording_start_time = None
+
+    def _record_trajectory_step(self, command: KeyboardCommand, obs: dict[str, Any]) -> None:
+        """Record a step of trajectory data."""
+        if not self.recording:
+            return
+
+        # Create trajectory step with timestamp
+        current_time = time.time()
+        if self.recording_start_time is None:
+            self.recording_start_time = current_time
+
+        step_data: TrajectoryStep = {
+            "timestamp": current_time - self.recording_start_time,
+            "command": {
+                "position": command.position.copy(),
+                "orientation": command.orientation.copy(),
+                "gripper_close": command.gripper_close,
+                "reset_scene": command.reset_scene,
+                "quit_teleop": command.quit_teleop,
+            },
+            "observation": obs.copy(),
+        }
+
+        self.trajectory_data.append(step_data)
 
     def close(self) -> None:
         """Close the wrapper."""
