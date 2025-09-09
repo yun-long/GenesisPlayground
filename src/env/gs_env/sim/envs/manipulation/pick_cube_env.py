@@ -101,7 +101,7 @@ class PickCubeEnv(BaseEnv):
         self.scene.clear_debug_objects()
 
         # Set initial robot pose
-        initial_q = torch.tensor([0.0, -0.3, 0.5, 0.0, 0.0, 0.0], dtype=torch.float32)
+        initial_q = torch.tensor([0.0, -0.3, 0.5, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
         self.entities["robot"].reset_to_pose(initial_q)
 
         # Randomize cube position (this will set new target location and draw debug sphere)
@@ -192,7 +192,7 @@ class PickCubeEnv(BaseEnv):
         # Reset robot to natural pose
         initial_q = torch.tensor(
             [0.0, -0.3, 0.5, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32
-        )  # 7 joints
+        )  # 7 joints to match registry format
         self.entities["robot"].reset_to_pose(initial_q)
 
         # Randomize cube position (this will set new target location and draw debug sphere)
