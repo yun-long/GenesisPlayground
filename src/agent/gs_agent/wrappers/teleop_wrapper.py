@@ -82,7 +82,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         movement_speed: float = _DEFAULT_MOVEMENT_SPEED,
         rotation_speed: float = _DEFAULT_ROTATION_SPEED,
         replay_steps_per_command: int = 3,
-        viewer_init_delay: float = 1.0,
         trajectory_filename_prefix: str = "franka_pick_place_",
     ) -> None:
         super().__init__(env, device)
@@ -93,7 +92,6 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         # Replay parameters
         self.replay_steps_per_command = replay_steps_per_command
-        self.viewer_init_delay = viewer_init_delay
 
         # Trajectory management
         self.trajectory_filename_prefix = trajectory_filename_prefix
@@ -117,17 +115,12 @@ class KeyboardWrapper(BaseEnvWrapper):
         # Trajectory recording
         self.recording = False
         self.trajectory_data: list[TrajectoryStep] = []
-        self.recording_start_time: float | None = None
         self.in_initial_state = True  # Track if we're in initial state after reset
 
         # input device
         self.clients = {}
         self.clients["keyboard"] = KeyboardDevice()
         self.clients["keyboard"].start()
-
-        # Track if system is ready for input
-        self.system_ready = False
-        self.ready_timer = None
 
         # Initialize current pose from environment if available
         # Note: This might fail if environment isn't fully initialized yet
@@ -142,16 +135,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.target_position = self.target_position
         self.target_orientation = self.target_orientation
         print("self.target_position", self.target_position.shape)
-        print("self.target_orientation", self.target_orientation.shape)
-
-        # Mark system as ready after a short delay to ensure everything is initialized
-        def mark_ready() -> None:
-            time.sleep(self.viewer_init_delay)
-            self.system_ready = True
-            print("🎮 Keyboard controls are now active!")
-
-        self.ready_timer = threading.Thread(target=mark_ready, daemon=True)
-        self.ready_timer.start()
+        print("🎮 Keyboard controls are now active!")
 
     def start(self) -> None:
         """Start keyboard listener."""
@@ -315,7 +299,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         obs = self._convert_observation_to_dict()
         if obs is None:
             return
-        from scipy.spatial.transform import Rotation as R  # type: ignore
 
         # Extract position and orientation from ee_pose (which contains both)
         ee_pose = obs["ee_pose"]
@@ -334,10 +317,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         # ee_pose should be [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z]
         if ee_pose.shape[-1] >= 7:  # Has both position and quaternion
             self.current_position = ee_pose[:3].copy()
-            quat_wxyz = ee_pose[3:7]  # [w, x, y, z] - Genesis convention
-            # Convert to scipy format [x, y, z, w]
-            quat_scipy = np.array([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
-            self.current_orientation = R.from_quat(quat_scipy).as_euler("xyz")
+            self.current_orientation = ee_pose[3:7].copy()  # [w, x, y, z] - Genesis convention
         elif ee_pose.shape[-1] >= 3:  # Only position
             self.current_position = ee_pose[:3].copy()
             # Keep current orientation unchanged
@@ -347,39 +327,6 @@ class KeyboardWrapper(BaseEnvWrapper):
 
     def _process_input(self) -> KeyboardCommand | None:
         """Process keyboard input and return command."""
-        # Check if system is ready for input
-        if not self.system_ready:
-            # Still allow recording toggle and quit even if not ready
-            with self.lock:
-                pressed_keys = self.clients["keyboard"].pressed_keys.copy()
-
-            # Handle recording toggle (only on key press, not while held)
-            if self.recording_toggle_requested:
-                if self.recording:
-                    self.stop_recording()
-                else:
-                    self.start_recording()
-                self.recording_toggle_requested = False
-
-            # Allow quit even if not ready
-            stop = keyboard.Key.esc in pressed_keys
-            if stop:
-                return KeyboardCommand(
-                    position=self.target_position,
-                    orientation=self.target_orientation,
-                    gripper_close=False,
-                    reset_scene=False,
-                    quit_teleop=True,
-                )
-
-            # Return neutral command if not ready
-            return KeyboardCommand(
-                position=self.target_position,
-                orientation=self.target_orientation,
-                gripper_close=False,
-                reset_scene=False,
-                quit_teleop=False,
-            )
 
         with self.lock:
             pressed_keys = self.clients["keyboard"].pressed_keys.copy()
@@ -577,20 +524,15 @@ class KeyboardWrapper(BaseEnvWrapper):
             print(f"Recording stopped. Captured {len(self.trajectory_data)} steps.")
             # Could save trajectory data here if needed
             self.trajectory_data.clear()
-            self.recording_start_time = None
 
     def _record_trajectory_step(self, command: KeyboardCommand, obs: dict[str, Any]) -> None:
         """Record a step of trajectory data."""
         if not self.recording:
             return
 
-        # Create trajectory step with timestamp
-        current_time = time.time()
-        if self.recording_start_time is None:
-            self.recording_start_time = current_time
-
+        # Create trajectory step with simulation time
         step_data: TrajectoryStep = {
-            "timestamp": current_time - self.recording_start_time,
+            "timestamp": self._env.scene.cur_t,
             "command": {
                 "position": command.position.clone(),
                 "orientation": command.orientation.clone(),
@@ -621,7 +563,6 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         self.recording = True
         self.trajectory_data = []
-        self.recording_start_time = time.time()
         print("🔴 Started recording trajectory...")
         print("   Press 'r' again to stop recording and save.")
 
@@ -632,7 +573,6 @@ class KeyboardWrapper(BaseEnvWrapper):
             return
 
         self.recording = False
-        recording_duration = time.time() - (self.recording_start_time or 0)
 
         print(f"🔴 Stopping recording... data_len={len(self.trajectory_data)}")
 
@@ -643,13 +583,11 @@ class KeyboardWrapper(BaseEnvWrapper):
         # Save trajectory to file
         filename = self._save_trajectory()
         print("✅ Stopped recording trajectory!")
-        print(f"   Duration: {recording_duration:.2f} seconds")
         print(f"   Steps recorded: {len(self.trajectory_data)}")
         print(f"   Saved to: {filename}")
 
         # Clear trajectory data
         self.trajectory_data = []
-        self.recording_start_time = None
 
     def _save_trajectory(self) -> str:
         """Save trajectory data to file."""
@@ -735,9 +673,6 @@ class KeyboardWrapper(BaseEnvWrapper):
                 self._env.reset_idx(torch.IntTensor([0]))
             print("🔄 Environment reset to initial state")
 
-            # Wait for viewer to initialize
-            time.sleep(self.viewer_init_delay)
-
             # Replay each step
             for i, step_data in enumerate(trajectory_data):
                 if not self.running:
@@ -760,9 +695,6 @@ class KeyboardWrapper(BaseEnvWrapper):
                 # Step the environment multiple times for smooth replay
                 for _ in range(self.replay_steps_per_command):
                     self._env.apply_action(torch.tensor([]))
-
-                # Small delay for visualization
-                time.sleep(0.02)
 
                 if i % 50 == 0:  # Progress update every 50 steps
                     print(f"   Step {i}/{len(trajectory_data)}")

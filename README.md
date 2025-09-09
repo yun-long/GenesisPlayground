@@ -131,7 +131,7 @@ Recorded trajectories are saved as pickle files with the following structure:
             "timestamp": 0.0,
             "command": {
                 "position": [x, y, z],
-                "orientation": [qx, qy, qz, qw],
+                "orientation": [qw, qx, qy, qz],
                 "gripper_close": 0.0,
                 "reset_scene": False,
                 "quit_teleop": False
