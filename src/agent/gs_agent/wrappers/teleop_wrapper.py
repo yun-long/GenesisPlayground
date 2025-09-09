@@ -589,8 +589,8 @@ class KeyboardWrapper(BaseEnvWrapper):
         step_data: TrajectoryStep = {
             "timestamp": current_time - self.recording_start_time,
             "command": {
-                "position": command.position.copy(),
-                "orientation": command.orientation.copy(),
+                "position": command.position.clone(),
+                "orientation": command.orientation.clone(),
                 "gripper_close": command.gripper_close,
                 "reset_scene": command.reset_scene,
                 "quit_teleop": command.quit_teleop,
