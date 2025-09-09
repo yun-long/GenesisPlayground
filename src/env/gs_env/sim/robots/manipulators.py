@@ -1,11 +1,11 @@
 from typing import Any
 
+import genesis as gs
 import numpy as np
 import torch
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink  # type: ignore
 from gymnasium import spaces
 
-import genesis as gs
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink  # type: ignore
 from gs_env.common.bases.base_robot import BaseGymRobot
 from gs_env.sim.robots.config.schema import (
     CtrlType,
@@ -221,11 +221,10 @@ class ManipulatorBase(BaseGymRobot):
             max_samples=10,  # number of IK samples
             max_solver_iters=20,  # maximum solver iterations
         )
-        if isinstance(q_pos, torch.Tensor):
-            q_pos[:, self._fingers_dof] = torch.tensor(
-                [act.gripper_width, act.gripper_width], device=self._device
-            )
-            self._robot_entity.control_dofs_position(position=q_pos)
+        q_pos[:, self._fingers_dof] = torch.tensor(
+            [act.gripper_width, act.gripper_width], device=self._device
+        )
+        self._robot_entity.control_dofs_position(position=q_pos)
 
     def _apply_ee_pose_rel(self, act: EEPoseRelAction) -> None:
         """

@@ -648,37 +648,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.trajectory_data = []
         self.recording_start_time = None
 
-    def _record_trajectory_step(self, command: KeyboardCommand, obs: dict[str, Any]) -> None:
-        """Record a single trajectory step."""
-        if not self.recording:
-            return
-
-        # Optimize recording by reducing data copying
-        step_data: TrajectoryStep = {
-            "timestamp": time.time() - (self.recording_start_time or 0),
-            "command": {
-                "position": command.position.clone().detach()  # type: ignore
-                if hasattr(command.position, "clone")
-                else command.position.copy(),
-                "orientation": command.orientation.clone().detach()  # type: ignore
-                if hasattr(command.orientation, "clone")
-                else command.orientation.copy(),
-                "gripper_close": command.gripper_close,
-                "reset_scene": command.reset_scene,
-                "quit_teleop": command.quit_teleop,
-            },
-            "observation": {
-                "ee_pose": obs.get("ee_pose"),
-                "cube_pos": obs.get("cube_pos"),
-                "cube_quat": obs.get("cube_quat"),
-            },
-        }
-        self.trajectory_data.append(step_data)
-
-        # Debug output every 50 steps to reduce overhead
-        if len(self.trajectory_data) % 50 == 0:
-            print(f"   📝 Recorded {len(self.trajectory_data)} steps...")
-
     def _save_trajectory(self) -> str:
         """Save trajectory data to file."""
         # Create trajectories directory if it doesn't exist
