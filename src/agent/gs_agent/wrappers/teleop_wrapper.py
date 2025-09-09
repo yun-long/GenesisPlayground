@@ -692,10 +692,6 @@ class KeyboardWrapper(BaseEnvWrapper):
                 # Apply command to environment
                 self._env.apply_action(command)
 
-                # Step the environment multiple times for smooth replay
-                # for _ in range(self.replay_steps_per_command):
-                #    self._env.apply_action(torch.tensor([]))
-
                 if i % 50 == 0:  # Progress update every 50 steps
                     print(f"   Step {i}/{len(trajectory_data)}")
 
