@@ -1,10 +1,10 @@
 from typing import Any
 
+import genesis as gs
 import gymnasium as gym
 import numpy as np
 import torch
 
-import genesis as gs
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.common.rewards import ActionL2Penalty, KeypointsAlign
 from gs_env.common.utils.math_utils import quat_mul

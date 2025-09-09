@@ -1,12 +1,12 @@
 import random
 from typing import Any
 
+import genesis as gs
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation as R
 
-import genesis as gs
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.envs.config.schema import EnvArgs
 from gs_env.sim.robots.config.schema import EEPoseAbsAction

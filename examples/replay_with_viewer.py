@@ -3,12 +3,11 @@
 Simple trajectory replay script using teleop wrapper.
 """
 
+import genesis as gs
 import torch
 from gs_agent.wrappers.teleop_wrapper import KeyboardWrapper
 from gs_env.sim.envs.config.registry import EnvArgsRegistry
 from gs_env.sim.envs.manipulation.pick_cube_env import PickCubeEnv
-
-import genesis as gs
 
 
 def main() -> None:

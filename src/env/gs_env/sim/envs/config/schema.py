@@ -1,7 +1,7 @@
+import genesis as gs
 from gs_schemas.base_types import genesis_pydantic_config
 from pydantic import BaseModel
 
-import genesis as gs
 from gs_env.sim.objects.config.schema import ObjectArgs
 from gs_env.sim.robots.config.schema import ManipulatorRobotArgs
 from gs_env.sim.scenes.config.schema import SceneArgs
