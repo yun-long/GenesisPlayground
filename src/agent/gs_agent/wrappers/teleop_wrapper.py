@@ -667,47 +667,31 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         return filepath
 
-    def _load_trajectory(self) -> list[TrajectoryStep] | None:
-        """Load the most recent trajectory file."""
+    def _load_trajectory(self, filename: str | None = None) -> list[TrajectoryStep] | None:
+        """Load a trajectory file. If no filename provided, loads the most recent one."""
         if not os.path.exists(TRAJECTORY_DIR):
             print("⚠️  No trajectories directory found!")
             return None
 
-        # Find all trajectory files
-        trajectory_files = [
-            f
-            for f in os.listdir(TRAJECTORY_DIR)
-            if f.startswith(self.trajectory_filename_prefix)
-            and f.endswith(TRAJECTORY_FILE_EXTENSION)
-        ]
+        # If no filename provided, find the most recent trajectory file
+        if filename is None:
+            # Find all trajectory files
+            trajectory_files = [
+                f
+                for f in os.listdir(TRAJECTORY_DIR)
+                if f.startswith(self.trajectory_filename_prefix)
+                and f.endswith(TRAJECTORY_FILE_EXTENSION)
+            ]
 
-        if not trajectory_files:
-            print("⚠️  No trajectory files found!")
-            return None
+            if not trajectory_files:
+                print("⚠️  No trajectory files found!")
+                return None
 
-        # Sort by modification time and get the latest
-        trajectory_files.sort(
-            key=lambda x: os.path.getmtime(os.path.join(TRAJECTORY_DIR, x)), reverse=True
-        )
-        latest_file = trajectory_files[0]
-        filepath = os.path.join(TRAJECTORY_DIR, latest_file)
-
-        # Load trajectory data
-        try:
-            with open(filepath, "rb") as f:
-                trajectory_data = pickle.load(f)
-            print(f"📁 Loaded trajectory from: {latest_file}")
-            print(f"   Steps: {len(trajectory_data)}")
-            return trajectory_data
-        except Exception as e:
-            print(f"❌ Failed to load trajectory: {e}")
-            return None
-
-    def _load_trajectory_file(self, filename: str) -> list[TrajectoryStep] | None:
-        """Load a specific trajectory file."""
-        if not os.path.exists(TRAJECTORY_DIR):
-            print("⚠️  No trajectories directory found!")
-            return None
+            # Sort by modification time and get the latest
+            trajectory_files.sort(
+                key=lambda x: os.path.getmtime(os.path.join(TRAJECTORY_DIR, x)), reverse=True
+            )
+            filename = trajectory_files[0]
 
         filepath = os.path.join(TRAJECTORY_DIR, filename)
 
@@ -735,10 +719,7 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         try:
             # Load trajectory data
-            if filename is None:
-                trajectory_data = self._load_trajectory()
-            else:
-                trajectory_data = self._load_trajectory_file(filename)
+            trajectory_data = self._load_trajectory(filename)
 
             if trajectory_data is None:
                 return
