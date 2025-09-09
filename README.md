@@ -68,9 +68,6 @@ Use the teleop interface to record robot demonstrations:
 ```bash
 # Record demonstrations with Franka robot (pick cube task)
 python examples/run_pick_cube_teleop.py
-
-# Record demonstrations with SO101 robot
-python examples/run_so101_teleop.py
 ```
 
 **Controls:**
