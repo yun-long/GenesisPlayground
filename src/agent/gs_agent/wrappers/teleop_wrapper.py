@@ -28,8 +28,8 @@ class KeyboardCommand:
 
     def __init__(
         self,
-        position: NDArray[np.float64],  # [3] xyz position
-        orientation: NDArray[np.float64],  # [4] wxyz quaternion
+        position: torch.Tensor,  # [3] xyz position
+        orientation: torch.Tensor,  # [4] wxyz quaternion
         gripper_close: bool = False,
         reset_scene: bool = False,
         quit_teleop: bool = False,
@@ -38,8 +38,8 @@ class KeyboardCommand:
         # absolute_joints: bool = False,
         # joint_targets: NDArray[np.float64] | None = None,
     ) -> None:
-        self.position: NDArray[np.float64] = position
-        self.orientation: NDArray[np.float64] = orientation
+        self.position: torch.Tensor = position
+        self.orientation: torch.Tensor = orientation
         self.gripper_close: bool = gripper_close
         self.reset_scene: bool = reset_scene
         self.quit_teleop: bool = quit_teleop
