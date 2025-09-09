@@ -1,6 +1,6 @@
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidJoint  # type: ignore
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidJoint
 
 T_cv = TypeVar("T_cv", covariant=True)
 

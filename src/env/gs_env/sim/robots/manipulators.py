@@ -1,9 +1,8 @@
 from typing import Any
 
 import genesis as gs
-import numpy as np
 import torch
-from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink  # type: ignore
+from genesis.engine.entities.rigid_entity import RigidEntity, RigidLink
 from gymnasium import spaces
 
 from gs_env.common.bases.base_robot import BaseGymRobot
@@ -20,7 +19,7 @@ class ManipulatorBase(BaseGymRobot):
     def __init__(
         self,
         num_envs: int,
-        scene: gs.Scene,  # type: ignore
+        scene: gs.Scene,
         args: ManipulatorRobotArgs,
         device: torch.device,
     ) -> None:
@@ -32,8 +31,8 @@ class ManipulatorBase(BaseGymRobot):
         self._args = args
 
         # == Genesis configurations ==
-        material: gs.materials.Rigid = gs.materials.Rigid()  # type: ignore
-        morph: gs.morphs.MJCF = gs.morphs.MJCF(  # type: ignore
+        material: gs.materials.Rigid = gs.materials.Rigid()
+        morph: gs.morphs.MJCF = gs.morphs.MJCF(
             file=args.morph_args.file,
             pos=args.morph_args.pos,
             quat=args.morph_args.quat,
@@ -127,14 +126,8 @@ class ManipulatorBase(BaseGymRobot):
         ).repeat(len(envs_idx), 1)
         self._robot_entity.set_qpos(default_joint_angles, envs_idx=envs_idx)
 
-    def reset_to_pose(
-        self, joint_positions: torch.Tensor | list[float] | np.ndarray[Any, np.dtype[np.floating]]
-    ) -> None:
+    def reset_to_pose(self, joint_positions: torch.Tensor) -> None:
         """Reset robot to a specific joint configuration."""
-        if isinstance(joint_positions, list | np.ndarray):
-            joint_positions = torch.tensor(
-                joint_positions, dtype=torch.float32, device=self._device
-            )
 
         # Ensure the tensor has the right shape (batch_size, num_joints)
         if joint_positions.dim() == 1:
@@ -306,8 +299,8 @@ class FrankaRobot(ManipulatorBase):
     def __init__(
         self,
         num_envs: int,
-        scene: gs.Scene,  # type: ignore
+        scene: gs.Scene,
         args: ManipulatorRobotArgs,
-        device: torch.device,  # type: ignore
+        device: torch.device,
     ) -> None:
         super().__init__(num_envs=num_envs, scene=scene, args=args, device=device)

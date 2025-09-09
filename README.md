@@ -91,6 +91,9 @@ Replay recorded demonstrations for analysis or behavior cloning:
 ```bash
 # Replay the latest recorded trajectory
 python examples/replay_with_viewer.py
+
+# Replay a specific trajectory file
+python examples/replay_with_viewer.py --trajectory-file franka_pick_place_1757368298.pkl
 ```
 
 **Replay Features:**
@@ -98,19 +101,21 @@ python examples/replay_with_viewer.py
 - Step-by-step trajectory analysis
 - Command and observation data access
 - Compatible with behavior cloning algorithms
+- Configurable filename prefix for different robots/tasks
+- Support for replaying specific trajectory files
 
 ### Behavior Cloning
 
-Use recorded trajectories for behavior cloning:
+Train behavior cloning on gym environments:
 
 ```bash
-# Train behavior cloning model on recorded data
+# Train behavior cloning model on gym environment (Pendulum-v1)
 python examples/run_bc_gym.py
 ```
 
 ### Trajectory Data Format
 
-Recorded trajectories are saved as pickle files with the following structure:
+Recorded trajectories are saved as pickle files with the following structure: 
 
 ```python
 {
@@ -132,9 +137,9 @@ Recorded trajectories are saved as pickle files with the following structure:
                 "quit_teleop": False
             },
             "observation": {
-                "ee_pose": [x, y, z, qx, qy, qz, qw],
+                "ee_pose": [x, y, z, qw, qx, qy, qz],
                 "cube_pos": [x, y, z],
-                "cube_quat": [qx, qy, qz, qw]
+                "cube_quat": [qw, qx, qy, qz]
             }
         },
         # ... more steps

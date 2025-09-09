@@ -7,13 +7,12 @@ from typing import Any
 import numpy as np
 import torch
 from numpy.typing import NDArray
-from pynput import keyboard  # type: ignore
+from pynput import keyboard
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
 # Constants for trajectory management
 TRAJECTORY_DIR = "trajectories"
-TRAJECTORY_FILENAME_PREFIX = "franka_pick_place_"
 TRAJECTORY_FILE_EXTENSION = ".pkl"
 
 # Type alias for trajectory step data
@@ -84,6 +83,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         rotation_speed: float = _DEFAULT_ROTATION_SPEED,
         replay_steps_per_command: int = 3,
         viewer_init_delay: float = 1.0,
+        trajectory_filename_prefix: str = "franka_pick_place_",
     ) -> None:
         super().__init__(env, device)
 
@@ -94,6 +94,9 @@ class KeyboardWrapper(BaseEnvWrapper):
         # Replay parameters
         self.replay_steps_per_command = replay_steps_per_command
         self.viewer_init_delay = viewer_init_delay
+
+        # Trajectory management
+        self.trajectory_filename_prefix = trajectory_filename_prefix
 
         # Keyboard state
         self.pressed_keys = set()
@@ -331,9 +334,9 @@ class KeyboardWrapper(BaseEnvWrapper):
         # ee_pose should be [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z]
         if ee_pose.shape[-1] >= 7:  # Has both position and quaternion
             self.current_position = ee_pose[:3].copy()
-            quat_xyzw = ee_pose[3:7]  # [w, x, y, z]
+            quat_wxyz = ee_pose[3:7]  # [w, x, y, z] - Genesis convention
             # Convert to scipy format [x, y, z, w]
-            quat_scipy = np.array([quat_xyzw[1], quat_xyzw[2], quat_xyzw[3], quat_xyzw[0]])
+            quat_scipy = np.array([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
             self.current_orientation = R.from_quat(quat_scipy).as_euler("xyz")
         elif ee_pose.shape[-1] >= 3:  # Only position
             self.current_position = ee_pose[:3].copy()
@@ -655,7 +658,7 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         # Generate filename with timestamp
         timestamp = int(time.time())
-        filename = f"{TRAJECTORY_FILENAME_PREFIX}{timestamp}{TRAJECTORY_FILE_EXTENSION}"
+        filename = f"{self.trajectory_filename_prefix}{timestamp}{TRAJECTORY_FILE_EXTENSION}"
         filepath = os.path.join(TRAJECTORY_DIR, filename)
 
         # Save trajectory data
@@ -674,7 +677,8 @@ class KeyboardWrapper(BaseEnvWrapper):
         trajectory_files = [
             f
             for f in os.listdir(TRAJECTORY_DIR)
-            if f.startswith(TRAJECTORY_FILENAME_PREFIX) and f.endswith(TRAJECTORY_FILE_EXTENSION)
+            if f.startswith(self.trajectory_filename_prefix)
+            and f.endswith(TRAJECTORY_FILE_EXTENSION)
         ]
 
         if not trajectory_files:
@@ -699,8 +703,31 @@ class KeyboardWrapper(BaseEnvWrapper):
             print(f"❌ Failed to load trajectory: {e}")
             return None
 
-    def replay_latest_trajectory(self) -> None:
-        """Replay the most recent trajectory."""
+    def _load_trajectory_file(self, filename: str) -> list[TrajectoryStep] | None:
+        """Load a specific trajectory file."""
+        if not os.path.exists(TRAJECTORY_DIR):
+            print("⚠️  No trajectories directory found!")
+            return None
+
+        filepath = os.path.join(TRAJECTORY_DIR, filename)
+
+        if not os.path.exists(filepath):
+            print(f"⚠️  Trajectory file not found: {filename}")
+            return None
+
+        # Load trajectory data
+        try:
+            with open(filepath, "rb") as f:
+                trajectory_data = pickle.load(f)
+            print(f"📁 Loaded trajectory from: {filename}")
+            print(f"   Steps: {len(trajectory_data)}")
+            return trajectory_data
+        except Exception as e:
+            print(f"❌ Failed to load trajectory: {e}")
+            return None
+
+    def replay_trajectory(self, filename: str | None = None) -> None:
+        """Replay a specific trajectory file or the most recent one if no filename provided."""
         print("🎬 Starting trajectory replay...")
 
         # Set running flag to allow replay
@@ -708,7 +735,11 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         try:
             # Load trajectory data
-            trajectory_data = self._load_latest_trajectory()
+            if filename is None:
+                trajectory_data = self._load_latest_trajectory()
+            else:
+                trajectory_data = self._load_trajectory_file(filename)
+
             if trajectory_data is None:
                 return
 
@@ -732,7 +763,7 @@ class KeyboardWrapper(BaseEnvWrapper):
                     print("⏹️  Replay stopped by user")
                     break
 
-                # Create command from recorded data
+                # Extract command from step data
                 cmd_data = step_data["command"]
                 command = KeyboardCommand(
                     position=cmd_data["position"],
@@ -743,19 +774,16 @@ class KeyboardWrapper(BaseEnvWrapper):
                 )
 
                 # Apply command to environment
-                if command:
-                    self._env.apply_action(command)
-                else:
+                self._env.apply_action(command)
+
+                # Step the environment multiple times for smooth replay
+                for _ in range(self.replay_steps_per_command):
                     self._env.apply_action(torch.tensor([]))
 
-                # Step multiple times per command for smooth replay
-                for _ in range(self.replay_steps_per_command):
-                    if not self.running:
-                        break
-                    time.sleep(0.01)  # 100Hz simulation rate for faster replay
+                # Small delay for visualization
+                time.sleep(0.02)
 
-                # Print progress
-                if i % 50 == 0:
+                if i % 50 == 0:  # Progress update every 50 steps
                     print(f"   Step {i}/{len(trajectory_data)}")
 
             print("✅ Trajectory replay completed!")
@@ -763,3 +791,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         finally:
             # Always reset running flag
             self.running = False
+
+    def replay_latest_trajectory(self) -> None:
+        """Replay the most recent trajectory."""
+        self.replay_trajectory()  # Call the new function without filename
