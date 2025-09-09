@@ -667,7 +667,7 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         return filepath
 
-    def _load_latest_trajectory(self) -> list[TrajectoryStep] | None:
+    def _load_trajectory(self) -> list[TrajectoryStep] | None:
         """Load the most recent trajectory file."""
         if not os.path.exists(TRAJECTORY_DIR):
             print("⚠️  No trajectories directory found!")
@@ -736,7 +736,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         try:
             # Load trajectory data
             if filename is None:
-                trajectory_data = self._load_latest_trajectory()
+                trajectory_data = self._load_trajectory()
             else:
                 trajectory_data = self._load_trajectory_file(filename)
 
