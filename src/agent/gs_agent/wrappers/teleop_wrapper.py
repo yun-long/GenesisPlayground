@@ -254,20 +254,26 @@ class KeyboardWrapper(BaseEnvWrapper):
         if not hasattr(self, "_env") or self._env is None:
             return None
 
-        # Get cube position
-        cube_pos = np.array(self._env.entities["cube"].get_pos())
-        cube_quat = np.array(self._env.entities["cube"].get_quat())
-
         # Create observation dictionary (for teleop compatibility)
         observation = {
             "ee_pose": self._env.entities["robot"].ee_pose,
-            # "end_effector_pos": robot_obs["end_effector_pos"],
-            # "end_effector_quat": robot_obs["end_effector_quat"],
-            "cube_pos": cube_pos,
-            "cube_quat": cube_quat,
             "rgb_images": {},  # No cameras in this simple setup
             "depth_images": {},  # No depth sensors in this simple setup
         }
+
+        # Add all object positions dynamically (excluding robot, plane, table, ee_frame)
+        excluded_entities = {"robot", "plane", "table", "ee_frame"}
+        for entity_name, entity in self._env.entities.items():
+            if entity_name not in excluded_entities:
+                try:
+                    obj_pos = np.array(entity.get_pos())
+                    obj_quat = np.array(entity.get_quat())
+                    observation[f"{entity_name}_pos"] = obj_pos
+                    observation[f"{entity_name}_quat"] = obj_quat
+                except Exception as e:
+                    # Skip entities that don't have get_pos/get_quat methods
+                    print(f"Warning: Could not get pose for entity '{entity_name}': {e}")
+                    continue
 
         return observation
 
@@ -318,10 +324,15 @@ class KeyboardWrapper(BaseEnvWrapper):
         if ee_pose.shape[-1] >= 7:  # Has both position and quaternion
             self.current_position = ee_pose[:3].copy()
             self.current_orientation = ee_pose[3:7].copy()  # [w, x, y, z] - Genesis convention
+            # Also update target values for teleop control
+            self.target_position = torch.tensor(ee_pose[:3], dtype=torch.float32).unsqueeze(0)
+            self.target_orientation = torch.tensor(ee_pose[3:7], dtype=torch.float32).unsqueeze(0)
         elif ee_pose.shape[-1] >= 3:  # Only position
             self.current_position = ee_pose[:3].copy()
             # Keep current orientation unchanged
             print("WARNING: Only position available, keeping current orientation")
+            # Update target position
+            self.target_position = torch.tensor(ee_pose[:3], dtype=torch.float32).unsqueeze(0)
         else:
             print(f"WARNING: Unexpected ee_pose shape: {ee_pose.shape}")
 
@@ -339,6 +350,8 @@ class KeyboardWrapper(BaseEnvWrapper):
             # Reset the environment
             if hasattr(self, "_env") and hasattr(self._env, "reset_idx"):
                 self._env.reset_idx(torch.IntTensor([0]))
+                # Sync teleop position to the reset robot position
+                self._sync_pose_from_env()
 
         # stop teleoperation
         stop = keyboard.Key.esc in pressed_keys
