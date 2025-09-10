@@ -29,8 +29,6 @@ class KeyboardCommand:
         position: torch.Tensor,  # [3] xyz position
         orientation: torch.Tensor,  # [4] wxyz quaternion
         gripper_close: bool = False,
-        reset_scene: bool = False,
-        quit_teleop: bool = False,
         # absolute_pose: bool = False,  # <-- NEW
         # NEW:
         # absolute_joints: bool = False,
@@ -39,8 +37,6 @@ class KeyboardCommand:
         self.position: torch.Tensor = position
         self.orientation: torch.Tensor = orientation
         self.gripper_close: bool = gripper_close
-        self.reset_scene: bool = reset_scene
-        self.quit_teleop: bool = quit_teleop
         # self.absolute_pose: bool = absolute_pose
         # self.absolute_joints: bool = absolute_joints
         # self.joint_targets: NDArray[np.float64] | None = joint_targets
@@ -101,18 +97,14 @@ class KeyboardWrapper(BaseEnvWrapper):
         self.listener = None
         self.running = False
 
-        # Key press tracking for toggle actions
-        self.last_recording_key_state = False
-        self.recording_toggle_requested = False
-
         # Current command state
-        self.pending_reset: bool = False
         self.last_command: KeyboardCommand | None = None
 
         # Trajectory recording
         self.recording = False
+        self.record_requested = False
+        self.reset_requested = False
         self.trajectory_data: list[TrajectoryStep] = []
-        self.in_initial_state = True  # Track if we're in initial state after reset
 
         # input device
         self.clients = {}
@@ -190,40 +182,14 @@ class KeyboardWrapper(BaseEnvWrapper):
         # Process keyboard input and create command
         command = self._process_input()
 
-        # Apply command to environment via apply_action
-        if command:
-            # Store last command for quit detection
-            self.last_command = command
-
-            # handle reset and recording
-            # If reset command was sent, mark for pose reinitialization in next step
-            if command.reset_scene:
-                self.pending_reset = True
-                # Stop recording when scene resets
-                if self.recording:
-                    self.stop_recording()
-                # Mark that we're now in initial state (can start recording)
-                self.in_initial_state = True
-                # NEW: prevent immediate follow-up movement from any stuck keys
-                with self.lock:
-                    self.pressed_keys.clear()
-
-            # Pass command directly to apply_action (like goal_reaching_env)
-            self._env.apply_action(command)
-        else:
-            # No command - just step the environment
-            self._env.apply_action(torch.tensor([]))
-
-        # CHANGED: after a reset, sync cached pose from the actual env pose
-        if self.pending_reset:
-            self.reset()
-            self.pending_reset = False
+        self.last_command = command
+        self._env.apply_action(command)
 
         # Get observations
         obs = self._convert_observation_to_dict()
 
         # Record trajectory data if recording
-        if self.recording and command is not None:
+        if self.recording:
             self._record_trajectory_step(command, obs)
 
         # Return teleop-specific format (rewards/termination not applicable)
@@ -237,11 +203,7 @@ class KeyboardWrapper(BaseEnvWrapper):
 
     def get_observations(self) -> torch.Tensor:
         """Get current observations."""
-        if hasattr(self, "_env") and self._env is not None:
-            obs = self._env.get_observations()
-            if obs is None:
-                return torch.tensor([])
-        return torch.tensor([])
+        return self._env.get_observations()
 
     def _convert_observation_to_dict(self) -> dict[str, Any]:
         """Convert tensor observation to dictionary format for teleop compatibility."""
@@ -263,37 +225,36 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         return observation
 
-    def _process_input(self) -> KeyboardCommand | None:
+    def _process_input(self) -> KeyboardCommand:
         """Process keyboard input and return command."""
 
         with self.lock:
             pressed_keys = self.clients["keyboard"].pressed_keys.copy()
         # reset scene:
-        reset_flag = False
-        reset_flag |= keyboard.KeyCode.from_char("u") in pressed_keys
 
         # TODO: reset scene
-        if reset_flag:
+        if self.reset_requested:
             # Reset the environment
             if hasattr(self, "_env") and hasattr(self._env, "reset_idx"):
-                self._env.reset_idx(torch.IntTensor([0]))
+                self.reset()
+                if self.recording:
+                    # create a new trajectory file
+                    self.stop_recording()
+                    self.start_recording()
+                with self.lock:
+                    self.pressed_keys.clear()
+            self.reset_requested = False
 
-        # stop teleoperation
-        stop = keyboard.Key.esc in pressed_keys
-
-        # Handle recording toggle (only on key press, not while held)
-        if self.recording_toggle_requested:
+        if self.record_requested:
             if self.recording:
                 self.stop_recording()
             else:
-                # Allow starting recording anytime
                 self.start_recording()
-            # Reset the flag after processing
-            self.recording_toggle_requested = False
+            self.record_requested = False
 
         # get ee target pose
         is_close_gripper = False
-        dpos = 0.002
+        dpos = 0.005
         for key in pressed_keys:
             if key == keyboard.Key.up:
                 self.target_position[0, 0] -= dpos
@@ -318,8 +279,6 @@ class KeyboardWrapper(BaseEnvWrapper):
             position=self.target_position,
             orientation=self.target_orientation,
             gripper_close=is_close_gripper,
-            reset_scene=reset_flag,
-            quit_teleop=stop,
         )
         return command
 
@@ -327,14 +286,15 @@ class KeyboardWrapper(BaseEnvWrapper):
         """Handle key press events."""
         with self.lock:
             self.pressed_keys.add(key)
-            # Handle recording key press - set flag for main loop to process
-            if key == keyboard.KeyCode.from_char("r"):
-                self.recording_toggle_requested = True
 
     def _on_release(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
         """Handle key release events."""
         with self.lock:
             self.pressed_keys.discard(key)
+            if key == keyboard.KeyCode.from_char("r"):
+                self.record_requested = True
+            if key == keyboard.KeyCode.from_char("u"):
+                self.reset_requested = True
 
     # Required properties for BaseEnvWrapper
     @property
@@ -373,8 +333,6 @@ class KeyboardWrapper(BaseEnvWrapper):
                 "position": command.position.clone(),
                 "orientation": command.orientation.clone(),
                 "gripper_close": command.gripper_close,
-                "reset_scene": command.reset_scene,
-                "quit_teleop": command.quit_teleop,
             },
             "observation": obs.copy(),
         }
@@ -504,9 +462,7 @@ class KeyboardWrapper(BaseEnvWrapper):
 
             print(f"🎯 Replaying {len(trajectory_data)} steps...")
 
-            # Reset environment to initial state
-            if hasattr(self, "_env") and hasattr(self._env, "reset_idx"):
-                self._env.reset_idx(torch.IntTensor([0]))
+            self._env.reset_idx(torch.IntTensor([0]))
             print("🔄 Environment reset to initial state")
 
             # Replay each step
@@ -521,8 +477,6 @@ class KeyboardWrapper(BaseEnvWrapper):
                     position=cmd_data["position"],
                     orientation=cmd_data["orientation"],
                     gripper_close=cmd_data["gripper_close"],
-                    reset_scene=cmd_data["reset_scene"],
-                    quit_teleop=cmd_data["quit_teleop"],
                 )
 
                 # Apply command to environment

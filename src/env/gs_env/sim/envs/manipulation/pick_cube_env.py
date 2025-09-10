@@ -108,13 +108,10 @@ class PickCubeEnv(BaseEnv):
         self._randomize_cube()
 
     # TODO: should not use Any but KeyboardCommand
-    def apply_action(self, action: torch.Tensor | Any) -> None:
+    def apply_action(self, action: Any) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
         # For teleop, action might be a command object instead of tensor
-        if isinstance(action, torch.Tensor):
-            # Empty tensor from teleop wrapper - no action to apply
-            pass
-        else:
+        if action is not None:
             # This is a command object from teleop
             self.last_command = action
 
