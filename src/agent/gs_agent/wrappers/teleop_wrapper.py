@@ -207,21 +207,26 @@ class KeyboardWrapper(BaseEnvWrapper):
 
     def _convert_observation_to_dict(self) -> dict[str, Any]:
         """Convert tensor observation to dictionary format for teleop compatibility."""
-
-        # Get cube position
-        cube_pos = np.array(self._env.entities["cube"].get_pos())
-        cube_quat = np.array(self._env.entities["cube"].get_quat())
-
         # Create observation dictionary (for teleop compatibility)
         observation = {
             "ee_pose": self._env.entities["robot"].ee_pose,
-            # "end_effector_pos": robot_obs["end_effector_pos"],
-            # "end_effector_quat": robot_obs["end_effector_quat"],
-            "cube_pos": cube_pos,
-            "cube_quat": cube_quat,
             "rgb_images": {},  # No cameras in this simple setup
             "depth_images": {},  # No depth sensors in this simple setup
         }
+
+        # Add all object positions dynamically (excluding robot, plane, table, ee_frame)
+        excluded_entities = {"robot", "plane", "table", "ee_frame"}
+        for entity_name, entity in self._env.entities.items():
+            if entity_name not in excluded_entities:
+                try:
+                    obj_pos = np.array(entity.get_pos())
+                    obj_quat = np.array(entity.get_quat())
+                    observation[f"{entity_name}_pos"] = obj_pos
+                    observation[f"{entity_name}_quat"] = obj_quat
+                except Exception as e:
+                    # Skip entities that don't have get_pos/get_quat methods
+                    print(f"Warning: Could not get pose for entity '{entity_name}': {e}")
+                    continue
 
         return observation
 

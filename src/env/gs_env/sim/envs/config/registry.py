@@ -56,3 +56,14 @@ EnvArgsRegistry["pick_cube_default"] = EnvArgs(
     reward_args={},
     img_resolution=(480, 270),
 )
+
+
+EnvArgsRegistry["put_bowl_inside_microwave_default"] = EnvArgs(
+    gs_init_args=GenesisInitArgsRegistry["default"],
+    scene_args=SceneArgsRegistry["flat_scene_default"],
+    robot_args=RobotArgsRegistry["franka_teleop"],
+    objects_args=[],  # Objects are created directly in the environment
+    sensors_args=[],
+    reward_args={},
+    img_resolution=(480, 270),
+)
