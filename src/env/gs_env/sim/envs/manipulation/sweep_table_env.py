@@ -69,11 +69,14 @@ class SweepTableEnv(BaseEnv):
             ),
         )
 
-        # Broom (using a simple box as placeholder since we don't have broom.glb)
+        # Broom (using the broom.glb from assets)
         self.entities["broom"] = self.scene.add_entity(
-            morph=gs.morphs.Box(
+            morph=gs.morphs.Mesh(
+                file="assets/broom.glb",
                 pos=(0.05, -0.2, 0.15),
-                size=(0.01, 0.2, 0.01),
+                euler=(90, 0, 90),
+                scale=(1 / 400, 1 / 800, 1 / 400),
+                collision=True,
             ),
         )
 
