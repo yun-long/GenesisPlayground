@@ -168,15 +168,15 @@ class KeyboardWrapper(BaseEnvWrapper):
         if self.listener:
             self.listener.stop()
 
-    def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
+    def reset(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Reset the environment."""
         self._env.reset_idx(torch.IntTensor([0]))
         obs = self._convert_observation_to_dict()
-        return torch.tensor([]), obs
+        return obs, {}
 
     def step(
         self, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
+    ) -> tuple[dict[str, Any], torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
         """Step the environment with teleop input."""
         # Process keyboard input and create command
         command = self._process_input()
@@ -193,11 +193,11 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         # Return teleop-specific format (rewards/termination not applicable)
         return (
-            torch.tensor([]),  # next_obs
+            obs,  # next_obs
             torch.tensor([0.0]),  # reward
             torch.tensor([False]),  # terminated
             torch.tensor([False]),  # truncated
-            obs,  # extra_infos
+            {},  # extra_infos
         )
 
     def get_observations(self) -> dict[str, Any]:

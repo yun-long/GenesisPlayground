@@ -89,12 +89,12 @@ class GoalReachingEnv(BaseEnv):
         self._info_space = gym.spaces.Dict({})
 
         #
-        self.goal_pose = torch.zeros(self.num_envs, 7, dtype=torch.float32, device=self._device)
-        self.time_since_reset = torch.zeros(self.num_envs, device=self._device)
+        self.goal_pose = torch.zeros(self.num_envs, 7, dtype=torch.float32, device=self.device)
+        self.time_since_reset = torch.zeros(self.num_envs, device=self.device)
         self.keypoints_offset = self.get_keypoint_offsets(
-            batch_size=self.num_envs, device=self._device, unit_length=0.5
+            batch_size=self.num_envs, device=self.device, unit_length=0.5
         )
-        self.action_buf = torch.zeros((self.num_envs, self.action_dim), device=self._device)
+        self.action_buf = torch.zeros((self.num_envs, self.action_dim), device=self.device)
 
     def reset_idx(self, envs_idx: torch.IntTensor) -> None:
         if len(envs_idx) == 0:
@@ -103,28 +103,28 @@ class GoalReachingEnv(BaseEnv):
         # Generate random goal positions
         num_reset = len(envs_idx)
         # Random position within reachable workspace
-        random_x = torch.rand(num_reset, device=self._device) * 0.3 + 0.15  # 0.15 to 0.45
-        random_y = (torch.rand(num_reset, device=self._device) - 0.5) * 0.4  # -0.2 to 0.2
-        random_z = torch.rand(num_reset, device=self._device) * 0.2 + 0.1  # 0.1 to 0.3
+        random_x = torch.rand(num_reset, device=self.device) * 0.3 + 0.15  # 0.15 to 0.45
+        random_y = (torch.rand(num_reset, device=self.device) - 0.5) * 0.4  # -0.2 to 0.2
+        random_z = torch.rand(num_reset, device=self.device) * 0.2 + 0.1  # 0.1 to 0.3
 
         self.goal_pose[envs_idx, 0] = random_x
         self.goal_pose[envs_idx, 1] = random_y
         self.goal_pose[envs_idx, 2] = random_z
 
         self.goal_pose[envs_idx] = torch.tensor(
-            [0.2, 0.0, 0.2, 1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self._device
+            [0.2, 0.0, 0.2, 1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self.device
         )
-        q_down = torch.tensor(
-            [0.0, 0.0, 1.0, 0.0], dtype=torch.float32, device=self._device
-        ).repeat(num_reset, 1)
-        random_yaw = torch.rand(num_reset, device=self._device) * 2 * np.pi - np.pi  # -pi to pi
+        q_down = torch.tensor([0.0, 0.0, 1.0, 0.0], dtype=torch.float32, device=self.device).repeat(
+            num_reset, 1
+        )
+        random_yaw = torch.rand(num_reset, device=self.device) * 2 * np.pi - np.pi  # -pi to pi
         random_yaw *= 0.25  # reduce the range to [-pi/4, pi/4]
         # random_yaw *= 0.0  # reduce the range to [-pi/4, pi/4]
         q_yaw = torch.stack(
             [
                 torch.cos(random_yaw / 2),
-                torch.zeros(num_reset, device=self._device),
-                torch.zeros(num_reset, device=self._device),
+                torch.zeros(num_reset, device=self.device),
+                torch.zeros(num_reset, device=self.device),
                 torch.sin(random_yaw / 2),
             ],
             dim=-1,
@@ -143,21 +143,22 @@ class GoalReachingEnv(BaseEnv):
         time_out_buf = self.time_since_reset > self._max_sim_time
         return time_out_buf
 
-    def get_observations(self) -> torch.Tensor:
+    def get_observations(self) -> dict[str, Any]:
         # Current end-effector pose
         ee_pos, ee_quat = self._robot.ee_pose[:, :3], self._robot.ee_pose[:, 3:7]
         #
         pos_diff = ee_pos - self.goal_pose[:, :3]
-        obs_components = [
-            pos_diff,  # 3D position difference
-            ee_quat,  # current orientation (4D quaternion)
-            self.goal_pose,  # goal pose (7D: pos + quat)
-        ]
-        return torch.cat(obs_components, dim=-1)
+
+        return {
+            "pose_vec": pos_diff,  # 3D position difference
+            "ee_quat": ee_quat,  # current orientation (4D quaternion)
+            "ref_position": self.goal_pose[:, :3],  # goal position
+            "ref_quat": self.goal_pose[:, 3:7],  # goal quaternion
+        }
 
     def apply_action(self, action: torch.Tensor) -> None:
         action = self.rescale_action(action)
-        self.action_buf[:] = action.clone().to(self._device)
+        self.action_buf[:] = action.clone().to(self.device)
         self.time_since_reset += self._scene.scene.dt
         self._robot.apply_action(action=action)
         self._scene.scene.step()
@@ -167,7 +168,7 @@ class GoalReachingEnv(BaseEnv):
 
     def rescale_action(self, action: torch.Tensor) -> torch.Tensor:
         action_scale: torch.Tensor = torch.tensor(
-            [0.1, 0.1, 0.1, 0.1, 0.1, 0.1], dtype=torch.float32, device=self._device
+            [0.1, 0.1, 0.1, 0.1, 0.1, 0.1], dtype=torch.float32, device=self.device
         )
         return action * action_scale
 

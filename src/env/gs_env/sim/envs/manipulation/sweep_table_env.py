@@ -42,8 +42,8 @@ class SweepTableEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=args.env_config.get("show_viewer", True),
-            show_FPS=args.env_config.get("show_FPS", False),
+            show_viewer=bool(args.env_config.get("show_viewer", True)),
+            show_FPS=bool(args.env_config.get("show_FPS", False)),
         )
 
         # Add entities
@@ -71,9 +71,20 @@ class SweepTableEnv(BaseEnv):
         )
 
         # Broom (using the broom.glb from assets)
-        broom_pos = args.env_config.get("broom_pos", (0.05, -0.2, 0.15))
-        broom_euler = args.env_config.get("broom_euler", (90, 0, 90))
-        broom_scale = args.env_config.get("broom_scale", (1 / 400, 1 / 800, 1 / 400))
+        broom_pos_raw = args.env_config.get("broom_pos", (0.05, -0.2, 0.15))
+        broom_euler_raw = args.env_config.get("broom_euler", (90, 0, 90))
+        broom_scale_raw = args.env_config.get("broom_scale", (1 / 400, 1 / 800, 1 / 400))
+        broom_pos = (
+            tuple(broom_pos_raw) if isinstance(broom_pos_raw, list | tuple) else (0.05, -0.2, 0.15)
+        )
+        broom_euler = (
+            tuple(broom_euler_raw) if isinstance(broom_euler_raw, list | tuple) else (90, 0, 90)
+        )
+        broom_scale = (
+            tuple(broom_scale_raw)
+            if isinstance(broom_scale_raw, list | tuple)
+            else (1 / 400, 1 / 800, 1 / 400)
+        )
         self.entities["broom"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/broom.glb",

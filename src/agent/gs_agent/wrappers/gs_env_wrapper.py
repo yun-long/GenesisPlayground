@@ -22,14 +22,14 @@ class GenesisEnvWrapper(BaseEnvWrapper):
     # ---------------------------
     # BatchEnvWrapper API (batch)
     # ---------------------------
-    def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
+    def reset(self) -> tuple[dict[str, Any], dict[str, Any]]:
         self.env.reset()
         self._curr_obs = self.env.get_observations()
         return self._curr_obs, self.env.get_extra_infos()
 
     def step(
         self, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
+    ) -> tuple[dict[str, Any], torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
         # apply action
         self.env.apply_action(action)
         # get observations
@@ -55,7 +55,7 @@ class GenesisEnvWrapper(BaseEnvWrapper):
         extra_infos["reward_terms"] = reward_terms
         return next_obs, reward, terminated, truncated, extra_infos
 
-    def get_observations(self) -> torch.Tensor:
+    def get_observations(self) -> dict[str, Any]:
         return self.env.get_observations()
 
     @property

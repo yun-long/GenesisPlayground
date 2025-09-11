@@ -42,8 +42,8 @@ class HangLifebuoyEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=args.env_config.get("show_viewer", True),
-            show_FPS=args.env_config.get("show_FPS", False),
+            show_viewer=bool(args.env_config.get("show_viewer", True)),
+            show_FPS=bool(args.env_config.get("show_FPS", False)),
         )
 
         # Add entities
@@ -83,9 +83,20 @@ class HangLifebuoyEnv(BaseEnv):
         )
 
         # Hanger (using the hanger.glb from assets)
-        hanger_pos = args.env_config.get("hanger_pos", (0.05, -0.2, 0.15))
-        hanger_euler = args.env_config.get("hanger_euler", (90, 0, 90))
-        hanger_scale = args.env_config.get("hanger_scale", (10, 5, 10))
+        hanger_pos_raw = args.env_config.get("hanger_pos", (0.05, -0.2, 0.15))
+        hanger_euler_raw = args.env_config.get("hanger_euler", (90, 0, 90))
+        hanger_scale_raw = args.env_config.get("hanger_scale", (10, 5, 10))
+        hanger_pos = (
+            tuple(hanger_pos_raw)
+            if isinstance(hanger_pos_raw, list | tuple)
+            else (0.05, -0.2, 0.15)
+        )
+        hanger_euler = (
+            tuple(hanger_euler_raw) if isinstance(hanger_euler_raw, list | tuple) else (90, 0, 90)
+        )
+        hanger_scale = (
+            tuple(hanger_scale_raw) if isinstance(hanger_scale_raw, list | tuple) else (10, 5, 10)
+        )
         self.entities["hanger"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/hanger.glb",

@@ -42,8 +42,8 @@ class PutBowlInsideMicrowaveEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=args.env_config.get("show_viewer", True),
-            show_FPS=args.env_config.get("show_FPS", False),
+            show_viewer=bool(args.env_config.get("show_viewer", True)),
+            show_FPS=bool(args.env_config.get("show_FPS", False)),
         )
 
         # Add entities
