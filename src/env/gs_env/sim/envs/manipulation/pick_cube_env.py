@@ -4,6 +4,7 @@ from typing import Any
 import genesis as gs
 import numpy as np
 import torch
+from gs_agent.wrappers.teleop_wrapper import KeyboardCommand
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation as R
 
@@ -110,32 +111,30 @@ class PickCubeEnv(BaseEnv):
         self._randomize_cube()
 
     # TODO: should not use Any but KeyboardCommand
-    def apply_action(self, action: torch.Tensor | Any) -> None:
+    def apply_action(self, action: torch.Tensor | KeyboardCommand) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
         # Skip empty tensors from teleop wrapper
         if isinstance(action, torch.Tensor) and action.numel() == 0:
             return
 
         # Apply command object from teleop
-        if action is not None:
-            self.last_command = action
+        self.last_command = action
 
+        # Type narrowing: at this point, action is a KeyboardCommand
+        if isinstance(action, KeyboardCommand):
             pos_quat = torch.concat([action.position, action.orientation], -1)
             self.entities["ee_frame"].set_qpos(pos_quat)
             # Apply action to robot
 
-            action = EEPoseAbsAction(
+            robot_action = EEPoseAbsAction(
                 ee_link_pos=action.position,
                 ee_link_quat=action.orientation,
                 gripper_width=0.0 if action.gripper_close else 0.04,
             )
-            self.entities["robot"].apply_action(action)
+            self.entities["robot"].apply_action(robot_action)
 
-            # Handle special commands
-            if hasattr(action, "reset_scene") and action.reset_scene:
-                self.reset_idx(torch.IntTensor([0]))
-            elif hasattr(action, "quit_teleop") and action.quit_teleop:
-                print("Quit command received from teleop")
+        # Handle special commands (if needed in the future)
+        # Note: KeyboardCommand doesn't currently support reset_scene or quit_teleop
 
         # Step the scene (like goal_reaching_env)
         self.scene.step()
