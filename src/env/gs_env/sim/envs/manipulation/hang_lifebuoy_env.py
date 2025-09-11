@@ -21,7 +21,6 @@ class HangLifebuoyEnv(BaseEnv):
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._device = device
         self._num_envs = 1  # Single environment for teleop
         FPS = 60
         # Create Genesis scene
@@ -43,8 +42,8 @@ class HangLifebuoyEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=True,  # Enable viewer for visualization
-            show_FPS=False,
+            show_viewer=args.env_config.get("show_viewer", True),
+            show_FPS=args.env_config.get("show_FPS", False),
         )
 
         # Add entities
@@ -62,31 +61,37 @@ class HangLifebuoyEnv(BaseEnv):
         )
 
         # Table
+        table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
+        table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
         self.entities["table"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=(0.0, 0.0, 0.05),
-                size=(0.6, 0.6, 0.1),
+                pos=table_pos,
+                size=table_size,
             ),
         )
 
         # Lifebuoy (using the lifebuoy.glb from assets)
+        lifebuoy_scale = args.env_config.get("lifebuoy_scale", 0.03)
         self.entities["lifebuoy"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/lifebuoy.glb",
                 pos=(0.05, 0.2, 0.15),
                 euler=(0, 0, 90),
-                scale=0.03,
+                scale=lifebuoy_scale,
                 collision=True,
             ),
         )
 
         # Hanger (using the hanger.glb from assets)
+        hanger_pos = args.env_config.get("hanger_pos", (0.05, -0.2, 0.15))
+        hanger_euler = args.env_config.get("hanger_euler", (90, 0, 90))
+        hanger_scale = args.env_config.get("hanger_scale", (10, 5, 10))
         self.entities["hanger"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/hanger.glb",
-                pos=(0.05, -0.2, 0.15),
-                euler=(90, 0, 90),
-                scale=(10, 5, 10),
+                pos=hanger_pos,
+                euler=hanger_euler,
+                scale=hanger_scale,
                 collision=True,
             ),
         )
@@ -161,33 +166,16 @@ class HangLifebuoyEnv(BaseEnv):
         # Step the scene (like goal_reaching_env)
         self.scene.step()
 
-    def get_observations(self) -> torch.Tensor:
-        """Get current observation as tensor (BaseEnv requirement)."""
-        ee_pose = self.entities["robot"].ee_pose
-        joint_pos = self.entities["robot"].joint_positions
-
-        # Get lifebuoy position and orientation
-        lifebuoy_pos = self.entities["lifebuoy"].get_pos()
-        lifebuoy_quat = self.entities["lifebuoy"].get_quat()
-
-        # Get hanger position and orientation
-        hanger_pos = self.entities["hanger"].get_pos()
-        hanger_quat = self.entities["hanger"].get_quat()
-
-        # Concatenate all observations into a single tensor
-        obs_tensor = torch.cat(
-            [
-                ee_pose,  # 7 values: [x, y, z, qw, qx, qy, qz]
-                joint_pos,  # 7 values: joint positions
-                lifebuoy_pos,  # 3 values: lifebuoy position
-                lifebuoy_quat,  # 4 values: lifebuoy quaternion [w, x, y, z]
-                hanger_pos,  # 3 values: hanger position
-                hanger_quat,  # 4 values: hanger quaternion [w, x, y, z]
-            ],
-            dim=-1,
-        )
-
-        return obs_tensor
+    def get_observations(self) -> dict[str, Any]:
+        """Get current observation as dictionary (BaseEnv requirement)."""
+        return {
+            "ee_pose": self.entities["robot"].ee_pose,
+            "joint_positions": self.entities["robot"].joint_positions,
+            "lifebuoy_pos": self.entities["lifebuoy"].get_pos(),
+            "lifebuoy_quat": self.entities["lifebuoy"].get_quat(),
+            "hanger_pos": self.entities["hanger"].get_pos(),
+            "hanger_quat": self.entities["hanger"].get_quat(),
+        }
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get end-effector pose for teleop wrapper."""

@@ -30,7 +30,6 @@ class GoalReachingEnv(BaseEnv):
     ) -> None:
         super().__init__(device=device)
         self._num_envs = num_envs
-        self._device = device
         self._show_viewer = show_viewer
         self._args = args
 

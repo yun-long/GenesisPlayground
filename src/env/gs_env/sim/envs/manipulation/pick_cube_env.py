@@ -24,7 +24,6 @@ class PickCubeEnv(BaseEnv):
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._device = device
         self._num_envs = 1  # Single environment for teleop
         FPS = 60
         # Create Genesis scene
@@ -46,8 +45,8 @@ class PickCubeEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=True,  # Enable viewer for visualization
-            show_FPS=False,
+            show_viewer=args.env_config.get("show_viewer", True),
+            show_FPS=args.env_config.get("show_FPS", False),
         )
 
         # Add entities
@@ -65,10 +64,12 @@ class PickCubeEnv(BaseEnv):
         )
 
         # Interactive cube
+        cube_pos = args.env_config.get("cube_pos", (0.5, 0.0, 0.07))
+        cube_size = args.env_config.get("cube_size", (0.04, 0.04, 0.04))
         self.entities["cube"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=(0.5, 0.0, 0.07),
-                size=(0.04, 0.04, 0.04),
+                pos=cube_pos,
+                size=cube_size,
             ),
         )
 
@@ -135,27 +136,14 @@ class PickCubeEnv(BaseEnv):
         # Step the scene (like goal_reaching_env)
         self.scene.step()
 
-    def get_observations(self) -> torch.Tensor:
-        """Get current observation as tensor (BaseEnv requirement)."""
-        ee_pose = self.entities["robot"].ee_pose
-        joint_pos = self.entities["robot"].joint_positions
-
-        # Get cube position
-        cube_pos = self.entities["cube"].get_pos()
-        cube_quat = self.entities["cube"].get_quat()
-
-        # Concatenate all observations into a single tensor
-        obs_tensor = torch.cat(
-            [
-                joint_pos,
-                ee_pose,
-                cube_pos,
-                cube_quat,
-            ],
-            dim=-1,
-        )
-
-        return obs_tensor
+    def get_observations(self) -> dict[str, Any]:
+        """Get current observation as dictionary (BaseEnv requirement)."""
+        return {
+            "ee_pose": self.entities["robot"].ee_pose,
+            "joint_positions": self.entities["robot"].joint_positions,
+            "cube_pos": self.entities["cube"].get_pos(),
+            "cube_quat": self.entities["cube"].get_quat(),
+        }
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         robot_pos = self.entities["robot"].ee_pose

@@ -21,7 +21,6 @@ class PutBowlInsideMicrowaveEnv(BaseEnv):
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._device = device
         self._num_envs = 1  # Single environment for teleop
         FPS = 60
         # Create Genesis scene
@@ -43,8 +42,8 @@ class PutBowlInsideMicrowaveEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=True,  # Enable viewer for visualization
-            show_FPS=False,
+            show_viewer=args.env_config.get("show_viewer", True),
+            show_FPS=args.env_config.get("show_FPS", False),
         )
 
         # Add entities
@@ -62,31 +61,37 @@ class PutBowlInsideMicrowaveEnv(BaseEnv):
         )
 
         # Table
+        table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
+        table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
         self.entities["table"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=(0.0, 0.0, 0.05),
-                size=(0.6, 0.6, 0.1),
+                pos=table_pos,
+                size=table_size,
             ),
         )
 
         # Bowl (using the winter_bowl.glb from assets)
+        bowl_scale = args.env_config.get("bowl_scale", 1 / 5000)
         self.entities["bowl"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/winter_bowl.glb",
                 pos=(0.05, -0.2, 0.15),
                 euler=(90, 0, 90),
-                scale=1 / 5000,
+                scale=bowl_scale,
                 collision=True,
             ),
         )
 
         # Microwave (using the 7310 URDF from assets)
+        microwave_pos = args.env_config.get("microwave_pos", (0.2, 0.2, 0.18))
+        microwave_euler = args.env_config.get("microwave_euler", (0, 0, 30))
+        microwave_scale = args.env_config.get("microwave_scale", 0.3)
         self.entities["microwave"] = self.scene.add_entity(
             morph=gs.morphs.URDF(
                 file="assets/7310/mobility.urdf",
-                pos=(0.2, 0.2, 0.18),
-                euler=(0, 0, 30),
-                scale=0.3,
+                pos=microwave_pos,
+                euler=microwave_euler,
+                scale=microwave_scale,
                 collision=True,
                 merge_fixed_links=True,
                 convexify=False,
@@ -167,33 +172,16 @@ class PutBowlInsideMicrowaveEnv(BaseEnv):
         # Step the scene (like goal_reaching_env)
         self.scene.step()
 
-    def get_observations(self) -> torch.Tensor:
-        """Get current observation as tensor (BaseEnv requirement)."""
-        ee_pose = self.entities["robot"].ee_pose
-        joint_pos = self.entities["robot"].joint_positions
-
-        # Get bowl position and orientation
-        bowl_pos = self.entities["bowl"].get_pos()
-        bowl_quat = self.entities["bowl"].get_quat()
-
-        # Get microwave position and orientation
-        microwave_pos = self.entities["microwave"].get_pos()
-        microwave_quat = self.entities["microwave"].get_quat()
-
-        # Concatenate all observations into a single tensor
-        obs_tensor = torch.cat(
-            [
-                ee_pose,  # 7 values: [x, y, z, qw, qx, qy, qz]
-                joint_pos,  # 7 values: joint positions
-                bowl_pos,  # 3 values: bowl position
-                bowl_quat,  # 4 values: bowl quaternion [w, x, y, z]
-                microwave_pos,  # 3 values: microwave position
-                microwave_quat,  # 4 values: microwave quaternion [w, x, y, z]
-            ],
-            dim=-1,
-        )
-
-        return obs_tensor
+    def get_observations(self) -> dict[str, Any]:
+        """Get current observation as dictionary (BaseEnv requirement)."""
+        return {
+            "ee_pose": self.entities["robot"].ee_pose,
+            "joint_positions": self.entities["robot"].joint_positions,
+            "bowl_pos": self.entities["bowl"].get_pos(),
+            "bowl_quat": self.entities["bowl"].get_quat(),
+            "microwave_pos": self.entities["microwave"].get_pos(),
+            "microwave_quat": self.entities["microwave"].get_quat(),
+        }
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get end-effector pose for teleop wrapper."""

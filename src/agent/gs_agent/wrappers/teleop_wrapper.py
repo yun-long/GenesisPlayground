@@ -4,7 +4,6 @@ import threading
 import time
 from typing import Any
 
-import numpy as np
 import torch
 from pynput import keyboard
 
@@ -201,32 +200,21 @@ class KeyboardWrapper(BaseEnvWrapper):
             obs,  # extra_infos
         )
 
-    def get_observations(self) -> torch.Tensor:
+    def get_observations(self) -> dict[str, Any]:
         """Get current observations."""
         return self._env.get_observations()
 
     def _convert_observation_to_dict(self) -> dict[str, Any]:
-        """Convert tensor observation to dictionary format for teleop compatibility."""
-        # Create observation dictionary (for teleop compatibility)
-        observation = {
-            "ee_pose": self._env.entities["robot"].ee_pose,
-            "rgb_images": {},  # No cameras in this simple setup
-            "depth_images": {},  # No depth sensors in this simple setup
-        }
+        """Convert observation to dictionary format for teleop compatibility."""
+        if not hasattr(self, "_env") or self._env is None:
+            return {}
 
-        # Add all object positions dynamically (excluding robot, plane, table, ee_frame)
-        excluded_entities = {"robot", "plane", "table", "ee_frame"}
-        for entity_name, entity in self._env.entities.items():
-            if entity_name not in excluded_entities:
-                try:
-                    obj_pos = np.array(entity.get_pos())
-                    obj_quat = np.array(entity.get_quat())
-                    observation[f"{entity_name}_pos"] = obj_pos
-                    observation[f"{entity_name}_quat"] = obj_quat
-                except Exception as e:
-                    # Skip entities that don't have get_pos/get_quat methods
-                    print(f"Warning: Could not get pose for entity '{entity_name}': {e}")
-                    continue
+        # Get the observation dictionary from the environment
+        observation = self._env.get_observations()
+
+        # Add teleop-specific fields
+        observation["rgb_images"] = {}  # No cameras in this simple setup
+        observation["depth_images"] = {}  # No depth sensors in this simple setup
 
         return observation
 

@@ -21,7 +21,6 @@ class SweepTableEnv(BaseEnv):
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._device = device
         self._num_envs = 1  # Single environment for teleop
         FPS = 60
         # Create Genesis scene
@@ -43,8 +42,8 @@ class SweepTableEnv(BaseEnv):
                 camera_fov=50,
                 max_FPS=200,
             ),
-            show_viewer=True,  # Enable viewer for visualization
-            show_FPS=False,
+            show_viewer=args.env_config.get("show_viewer", True),
+            show_FPS=args.env_config.get("show_FPS", False),
         )
 
         # Add entities
@@ -62,29 +61,35 @@ class SweepTableEnv(BaseEnv):
         )
 
         # Table
+        table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
+        table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
         self.entities["table"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=(0.0, 0.0, 0.05),
-                size=(0.6, 0.6, 0.1),
+                pos=table_pos,
+                size=table_size,
             ),
         )
 
         # Broom (using the broom.glb from assets)
+        broom_pos = args.env_config.get("broom_pos", (0.05, -0.2, 0.15))
+        broom_euler = args.env_config.get("broom_euler", (90, 0, 90))
+        broom_scale = args.env_config.get("broom_scale", (1 / 400, 1 / 800, 1 / 400))
         self.entities["broom"] = self.scene.add_entity(
             morph=gs.morphs.Mesh(
                 file="assets/broom.glb",
-                pos=(0.05, -0.2, 0.15),
-                euler=(90, 0, 90),
-                scale=(1 / 400, 1 / 800, 1 / 400),
+                pos=broom_pos,
+                euler=broom_euler,
+                scale=broom_scale,
                 collision=True,
             ),
         )
 
         # Trashbox A
+        trashbox_size = args.env_config.get("trashbox_size", (0.03, 0.03, 0.03))
         self.entities["trashbox_a"] = self.scene.add_entity(
             morph=gs.morphs.Box(
                 pos=(0.15, 0.0, 0.15),
-                size=(0.03, 0.03, 0.03),
+                size=trashbox_size,
             ),
         )
 
@@ -92,15 +97,17 @@ class SweepTableEnv(BaseEnv):
         self.entities["trashbox_b"] = self.scene.add_entity(
             morph=gs.morphs.Box(
                 pos=(0.15, -0.1, 0.15),
-                size=(0.03, 0.03, 0.03),
+                size=trashbox_size,
             ),
         )
 
         # Target zone (red area on table)
+        target_zone_pos = args.env_config.get("target_zone_pos", (0.1, 0.3, 0.045))
+        target_zone_size = args.env_config.get("target_zone_size", (0.3, 0.3, 0.003))
         self.entities["target_zone"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=(0.1, 0.3, 0.045),
-                size=(0.3, 0.3, 0.003),
+                pos=target_zone_pos,
+                size=target_zone_size,
             ),
         )
 
@@ -185,42 +192,20 @@ class SweepTableEnv(BaseEnv):
         # Step the scene (like goal_reaching_env)
         self.scene.step()
 
-    def get_observations(self) -> torch.Tensor:
-        """Get current observation as tensor (BaseEnv requirement)."""
-        ee_pose = self.entities["robot"].ee_pose
-        joint_pos = self.entities["robot"].joint_positions
-
-        # Get object positions and orientations
-        broom_pos = self.entities["broom"].get_pos()
-        broom_quat = self.entities["broom"].get_quat()
-
-        trashbox_a_pos = self.entities["trashbox_a"].get_pos()
-        trashbox_a_quat = self.entities["trashbox_a"].get_quat()
-
-        trashbox_b_pos = self.entities["trashbox_b"].get_pos()
-        trashbox_b_quat = self.entities["trashbox_b"].get_quat()
-
-        target_zone_pos = self.entities["target_zone"].get_pos()
-        target_zone_quat = self.entities["target_zone"].get_quat()
-
-        # Concatenate all observations into a single tensor
-        obs_tensor = torch.cat(
-            [
-                ee_pose,  # 7 values: [x, y, z, qw, qx, qy, qz]
-                joint_pos,  # 7 values: joint positions
-                broom_pos,  # 3 values: broom position
-                broom_quat,  # 4 values: broom quaternion [w, x, y, z]
-                trashbox_a_pos,  # 3 values: trashbox_a position
-                trashbox_a_quat,  # 4 values: trashbox_a quaternion [w, x, y, z]
-                trashbox_b_pos,  # 3 values: trashbox_b position
-                trashbox_b_quat,  # 4 values: trashbox_b quaternion [w, x, y, z]
-                target_zone_pos,  # 3 values: target_zone position
-                target_zone_quat,  # 4 values: target_zone quaternion [w, x, y, z]
-            ],
-            dim=-1,
-        )
-
-        return obs_tensor
+    def get_observations(self) -> dict[str, Any]:
+        """Get current observation as dictionary (BaseEnv requirement)."""
+        return {
+            "ee_pose": self.entities["robot"].ee_pose,
+            "joint_positions": self.entities["robot"].joint_positions,
+            "broom_pos": self.entities["broom"].get_pos(),
+            "broom_quat": self.entities["broom"].get_quat(),
+            "trashbox_a_pos": self.entities["trashbox_a"].get_pos(),
+            "trashbox_a_quat": self.entities["trashbox_a"].get_quat(),
+            "trashbox_b_pos": self.entities["trashbox_b"].get_pos(),
+            "trashbox_b_quat": self.entities["trashbox_b"].get_quat(),
+            "target_zone_pos": self.entities["target_zone"].get_pos(),
+            "target_zone_quat": self.entities["target_zone"].get_quat(),
+        }
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get end-effector pose for teleop wrapper."""
