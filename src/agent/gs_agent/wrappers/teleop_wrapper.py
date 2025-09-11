@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 from pynput import keyboard
+from scipy.spatial.transform import Rotation as R
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
@@ -154,8 +155,8 @@ class KeyboardWrapper(BaseEnvWrapper):
         print("→ - Move Right (East)")
         print("n - Move Up")
         print("m - Move Down")
-        print("j - Rotate Counterclockwise")
-        print("k - Rotate Clockwise")
+        print("j - Rotate around Z-axis (Left)")
+        print("k - Rotate around Z-axis (Right)")
         print("u - Reset Scene")
         print("space - Press to close gripper, release to open gripper")
         print("r - Start/Stop Recording Trajectory")
@@ -255,6 +256,7 @@ class KeyboardWrapper(BaseEnvWrapper):
         # get ee target pose
         is_close_gripper = False
         dpos = 0.005
+        drot = 0.01
         for key in pressed_keys:
             if key == keyboard.Key.up:
                 self.target_position[0, 0] -= dpos
@@ -269,9 +271,25 @@ class KeyboardWrapper(BaseEnvWrapper):
             elif key == keyboard.KeyCode.from_char("m"):
                 self.target_position[0, 2] -= dpos
             elif key == keyboard.KeyCode.from_char("j"):
-                raise NotImplementedError("Rotation not implemented")
+                # 围绕Z轴逆时针旋转（向左）
+                # 保持末端垂直向下，只改变围绕Z轴的旋转
+                current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
+                # 获取当前Z轴旋转角度
+                current_euler = current_rotation.as_euler("xyz", degrees=False)
+                # 只修改Z轴旋转角度
+                new_euler = [current_euler[0] + drot, current_euler[1], current_euler[2]]
+                new_rotation = R.from_euler("xyz", new_euler)
+                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
             elif key == keyboard.KeyCode.from_char("k"):
-                raise NotImplementedError("Rotation not implemented")
+                # 围绕x轴顺时针旋转（向右）
+                # 保持末端垂直向下，只改变围绕x轴的旋转
+                current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
+                # 获取当前x轴旋转角度
+                current_euler = current_rotation.as_euler("xyz", degrees=False)
+                # 只修改x轴旋转角度
+                new_euler = [current_euler[0] - drot, current_euler[1], current_euler[2]]
+                new_rotation = R.from_euler("xyz", new_euler)
+                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
             elif key == keyboard.Key.space:
                 is_close_gripper = True
 
