@@ -21,10 +21,11 @@ class PickCubeEnv(BaseEnv):
     def __init__(
         self,
         args: EnvArgs,
+        num_envs: int = 1,
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._num_envs = 1  # Single environment for teleop
+        self._num_envs = num_envs
         FPS = 60
         # Create Genesis scene
         self.scene = gs.Scene(
@@ -109,11 +110,14 @@ class PickCubeEnv(BaseEnv):
         self._randomize_cube()
 
     # TODO: should not use Any but KeyboardCommand
-    def apply_action(self, action: Any) -> None:
+    def apply_action(self, action: torch.Tensor | Any) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
-        # For teleop, action might be a command object instead of tensor
+        # Skip empty tensors from teleop wrapper
+        if isinstance(action, torch.Tensor) and action.numel() == 0:
+            return
+
+        # Apply command object from teleop
         if action is not None:
-            # This is a command object from teleop
             self.last_command = action
 
             pos_quat = torch.concat([action.position, action.orientation], -1)

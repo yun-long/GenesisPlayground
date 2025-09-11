@@ -18,10 +18,11 @@ class HangLifebuoyEnv(BaseEnv):
     def __init__(
         self,
         args: EnvArgs,
+        num_envs: int = 1,
         device: torch.device = _DEFAULT_DEVICE,
     ) -> None:
         super().__init__(device=device)
-        self._num_envs = 1  # Single environment for teleop
+        self._num_envs = num_envs
         FPS = 60
         # Create Genesis scene
         self.scene = gs.Scene(
@@ -149,30 +150,29 @@ class HangLifebuoyEnv(BaseEnv):
 
     def apply_action(self, action: torch.Tensor | Any) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
-        # For teleop, action might be a command object instead of tensor
-        if isinstance(action, torch.Tensor):
-            # Empty tensor from teleop wrapper - no action to apply
-            pass
-        else:
-            # This is a command object from teleop
-            self.last_command = action
+        # Skip empty tensors from teleop wrapper
+        if isinstance(action, torch.Tensor) and action.numel() == 0:
+            return
 
-            pos_quat = torch.concat([action.position, action.orientation], -1)
-            self.entities["ee_frame"].set_qpos(pos_quat)
-            # Apply action to robot
+        # Apply command object from teleop
+        self.last_command = action
 
-            robot_action = EEPoseAbsAction(
-                ee_link_pos=action.position,
-                ee_link_quat=action.orientation,
-                gripper_width=0.0 if action.gripper_close else 0.04,
-            )
-            self.entities["robot"].apply_action(robot_action)
+        pos_quat = torch.concat([action.position, action.orientation], -1)
+        self.entities["ee_frame"].set_qpos(pos_quat)
+        # Apply action to robot
 
-            # Handle special commands
-            if hasattr(action, "reset_scene") and action.reset_scene:
-                self.reset_idx(torch.IntTensor([0]))
-            elif hasattr(action, "quit_teleop") and action.quit_teleop:
-                print("Quit command received from teleop")
+        robot_action = EEPoseAbsAction(
+            ee_link_pos=action.position,
+            ee_link_quat=action.orientation,
+            gripper_width=0.0 if action.gripper_close else 0.04,
+        )
+        self.entities["robot"].apply_action(robot_action)
+
+        # Handle special commands
+        if hasattr(action, "reset_scene") and action.reset_scene:
+            self.reset_idx(torch.IntTensor([0]))
+        elif hasattr(action, "quit_teleop") and action.quit_teleop:
+            print("Quit command received from teleop")
 
         # Step the scene (like goal_reaching_env)
         self.scene.step()
