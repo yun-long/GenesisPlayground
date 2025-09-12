@@ -271,22 +271,20 @@ class KeyboardWrapper(BaseEnvWrapper):
             elif key == keyboard.KeyCode.from_char("m"):
                 self.target_position[0, 2] -= dpos
             elif key == keyboard.KeyCode.from_char("j"):
-                # 围绕x轴逆时针旋转（向左）
-                # 保持末端垂直向下，只改变围绕x轴的旋转
+                # keep the end effector vertical down, only change the rotation around the x axis
                 current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
-                # 获取当前x轴旋转角度
+                # get the current x axis rotation angle
                 current_euler = current_rotation.as_euler("xyz", degrees=False)
-                # 只修改x轴旋转角度
+                # only change the x axis rotation angle
                 new_euler = [current_euler[0] + drot, current_euler[1], current_euler[2]]
                 new_rotation = R.from_euler("xyz", new_euler)
                 self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
             elif key == keyboard.KeyCode.from_char("k"):
-                # 围绕x轴顺时针旋转（向右）
-                # 保持末端垂直向下，只改变围绕x轴的旋转
+                # keep the end effector vertical down, only change the rotation around the x axis
                 current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
-                # 获取当前x轴旋转角度
+                # get the current x axis rotation angle
                 current_euler = current_rotation.as_euler("xyz", degrees=False)
-                # 只修改x轴旋转角度
+                # only change the x axis rotation angle
                 new_euler = [current_euler[0] - drot, current_euler[1], current_euler[2]]
                 new_rotation = R.from_euler("xyz", new_euler)
                 self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
