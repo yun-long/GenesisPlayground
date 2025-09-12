@@ -169,6 +169,7 @@ pyright src/agent
 ## TODO
 
 - [x] Address CI errors
-- [ ] Add coding guidelines
+- [x] Add coding guidelines
 - [x] Add teleop interface and examples
 - [x] Add BC algorithms
+- [ ] Add more examples
