@@ -107,7 +107,7 @@ def main(train: bool = True) -> None:
         train_summary_info = runner.train(metric_logger=logger)
         print("Training completed successfully!")
         print(f"Training completed in {train_summary_info['total_time']:.2f} seconds.")
-        print(f"Total episodes: {train_summary_info['total_episodes']}.")
+        print(f"Total iterations: {train_summary_info['total_iterations']}.")
         print(f"Total steps: {train_summary_info['total_steps']}.")
         print(f"Total reward: {train_summary_info['final_reward']:.2f}.")
 
