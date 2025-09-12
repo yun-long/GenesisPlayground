@@ -62,6 +62,9 @@ class SweepTableEnv(BaseEnv):
             device=self.device,
         )
 
+        # Add camera for image capture
+        self._setup_camera()
+
         # Table
         table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
         table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
@@ -147,6 +150,37 @@ class SweepTableEnv(BaseEnv):
         # Track current target point for visualization
         self.current_target_pos = None
 
+    def _setup_camera(
+        self,
+        pos: tuple[float, float, float] = (1.5, 0.0, 0.7),
+        lookat: tuple[float, float, float] = (0.2, 0.0, 0.1),
+        fov: int = 50,
+        resolution: tuple[int, int] = (640, 480),
+    ) -> None:
+        """Setup camera for image capture using Genesis camera renderer."""
+        # Add camera to scene (Genesis-specific)
+        self.camera = self.scene.add_camera(
+            res=resolution,
+            pos=pos,  # Camera position
+            lookat=lookat,  # Camera lookat point
+            fov=fov,  # Field of view
+            GUI=False,  # Don't show in GUI
+        )
+
+    def get_rgb_image(self, normalize: bool = True) -> torch.Tensor | None:
+        """Capture RGB image from camera."""
+        try:
+            # Render camera image (Genesis-specific)
+            rgb, _, _, _ = self.camera.render(
+                rgb=True, depth=False, segmentation=False, normal=False
+            )
+
+            # Use base class processing logic
+            return self._process_rgb_tensor(rgb, normalize)
+        except Exception as e:
+            print(f"Warning: Could not capture camera image: {e}")
+            return None
+
     def initialize(self) -> None:
         """Initialize the environment."""
         # Set object masses
@@ -205,7 +239,7 @@ class SweepTableEnv(BaseEnv):
 
     def get_observations(self) -> dict[str, Any]:
         """Get current observation as dictionary (BaseEnv requirement)."""
-        return {
+        observations = {
             "ee_pose": self.entities["robot"].ee_pose,
             "joint_positions": self.entities["robot"].joint_positions,
             "broom_pos": self.entities["broom"].get_pos(),
@@ -217,6 +251,9 @@ class SweepTableEnv(BaseEnv):
             "target_zone_pos": self.entities["target_zone"].get_pos(),
             "target_zone_quat": self.entities["target_zone"].get_quat(),
         }
+
+        # Add RGB images using base class helper
+        return self._add_rgb_to_observations(observations)
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get end-effector pose for teleop wrapper."""
