@@ -2,11 +2,8 @@ import random
 from typing import Any
 
 import genesis as gs
-import numpy as np
 import torch
 from gs_agent.wrappers.teleop_wrapper import KeyboardCommand
-from numpy.typing import NDArray
-from scipy.spatial.transform import Rotation as R
 
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.envs.config.schema import EnvArgs
@@ -16,8 +13,8 @@ from gs_env.sim.robots.manipulators import FrankaRobot
 _DEFAULT_DEVICE = torch.device("cpu")
 
 
-class PickCubeEnv(BaseEnv):
-    """Pick cube environment."""
+class PutBowlInsideMicrowaveEnv(BaseEnv):
+    """Put bowl inside microwave environment."""
 
     def __init__(
         self,
@@ -68,13 +65,41 @@ class PickCubeEnv(BaseEnv):
         # Add camera for image capture
         self._setup_camera()
 
-        # Interactive cube
-        cube_pos = args.env_config.get("cube_pos", (0.5, 0.0, 0.07))
-        cube_size = args.env_config.get("cube_size", (0.04, 0.04, 0.04))
-        self.entities["cube"] = self.scene.add_entity(
+        # Table
+        table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
+        table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
+        self.entities["table"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=cube_pos,
-                size=cube_size,
+                pos=table_pos,
+                size=table_size,
+            ),
+        )
+
+        # Bowl (using the winter_bowl.glb from assets)
+        bowl_scale = args.env_config.get("bowl_scale", 1 / 5000)
+        self.entities["bowl"] = self.scene.add_entity(
+            morph=gs.morphs.Mesh(
+                file="assets/winter_bowl.glb",
+                pos=(0.05, -0.2, 0.15),
+                euler=(90, 0, 90),
+                scale=bowl_scale,
+                collision=True,
+            ),
+        )
+
+        # Microwave (using the 7310 URDF from assets)
+        microwave_pos = args.env_config.get("microwave_pos", (0.2, 0.2, 0.18))
+        microwave_euler = args.env_config.get("microwave_euler", (0, 0, 30))
+        microwave_scale = args.env_config.get("microwave_scale", 0.3)
+        self.entities["microwave"] = self.scene.add_entity(
+            morph=gs.morphs.URDF(
+                file="assets/7310/mobility.urdf",
+                pos=microwave_pos,
+                euler=microwave_euler,
+                scale=microwave_scale,
+                collision=True,
+                merge_fixed_links=True,
+                convexify=False,
             ),
         )
 
@@ -95,8 +120,8 @@ class PickCubeEnv(BaseEnv):
         # Store entities for easy access
         self.robot = self.entities["robot"]
 
-        # Initialize with randomized cube and target positions
-        self._randomize_cube()
+        # Initialize with randomized positions
+        self._randomize_objects()
 
         # Track current target point for visualization
         self.current_target_pos = None
@@ -109,7 +134,7 @@ class PickCubeEnv(BaseEnv):
         resolution: tuple[int, int] = (640, 480),
     ) -> None:
         """Setup camera for image capture using Genesis camera renderer."""
-        # Add camera to scene (similar to your example)
+        # Add camera to scene (Genesis-specific)
         self.camera = self.scene.add_camera(
             res=resolution,
             pos=pos,  # Camera position
@@ -134,17 +159,25 @@ class PickCubeEnv(BaseEnv):
 
     def initialize(self) -> None:
         """Initialize the environment."""
-        # Clear any existing debug objects
-        self.scene.clear_debug_objects()
+        # Set bowl mass
+        self.entities["bowl"].set_mass(0.01)
 
-        # Set initial robot pose
-        initial_q = torch.tensor([0.0, -0.3, 0.5, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
-        self.entities["robot"].reset_to_pose(initial_q)
+        # Set microwave door damping
+        # Set damping for microwave (8 DOFs: 3 pos + 4 quat + 1 joint)
+        self.entities["microwave"].set_dofs_damping([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 1.0])
 
-        # Randomize cube position (this will set new target location and draw debug sphere)
-        self._randomize_cube()
+    def _randomize_objects(self) -> None:
+        """Randomize object positions."""
+        # Randomize bowl position on table
+        bowl_x = random.uniform(-0.1, 0.1)
+        bowl_y = random.uniform(-0.2, 0.0)
+        bowl_pos = torch.tensor([bowl_x, bowl_y, 0.15], dtype=torch.float32)
+        self.entities["bowl"].set_pos(bowl_pos)
 
-    # TODO: should not use Any but KeyboardCommand
+        # Microwave position is fixed
+        microwave_pos = torch.tensor([0.2, 0.2, 0.18], dtype=torch.float32)
+        self.entities["microwave"].set_pos(microwave_pos)
+
     def apply_action(self, action: torch.Tensor | KeyboardCommand) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
         # Skip empty tensors from teleop wrapper
@@ -178,14 +211,17 @@ class PickCubeEnv(BaseEnv):
         observations = {
             "ee_pose": self.entities["robot"].ee_pose,
             "joint_positions": self.entities["robot"].joint_positions,
-            "cube_pos": self.entities["cube"].get_pos(),
-            "cube_quat": self.entities["cube"].get_quat(),
+            "bowl_pos": self.entities["bowl"].get_pos(),
+            "bowl_quat": self.entities["bowl"].get_quat(),
+            "microwave_pos": self.entities["microwave"].get_pos(),
+            "microwave_quat": self.entities["microwave"].get_quat(),
         }
 
         # Add RGB images using base class helper
         return self._add_rgb_to_observations(observations)
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get end-effector pose for teleop wrapper."""
         robot_pos = self.entities["robot"].ee_pose
         return robot_pos[..., :3], robot_pos[..., 3:]
 
@@ -202,12 +238,27 @@ class PickCubeEnv(BaseEnv):
         return torch.tensor([False])
 
     def get_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """Get reward and reward components."""
+        """Get reward."""
         return torch.tensor([0.0]), {}
 
     def is_episode_complete(self) -> torch.Tensor:
-        """Check if episode is complete."""
-        return torch.tensor([False])  # Episodes don't end automatically
+        """Check if episode is complete - bowl is inside microwave."""
+        # Get AABB (Axis-Aligned Bounding Box) for both objects
+        bowl_aabb = self.entities["bowl"].get_AABB()  # [2, 3] - min and max corners
+        microwave_aabb = self.entities["microwave"].get_AABB()  # [2, 3] - min and max corners
+
+        # Check if bowl is inside microwave using AABB intersection
+        # Bowl is inside if its AABB is completely contained within microwave AABB
+        bowl_min, bowl_max = bowl_aabb[0], bowl_aabb[1]
+        microwave_min, microwave_max = microwave_aabb[0], microwave_aabb[1]
+
+        # Check if bowl is inside microwave (with some tolerance)
+        tolerance = 0.05  # 5cm tolerance
+        is_inside = torch.all(
+            (bowl_min >= microwave_min - tolerance) & (bowl_max <= microwave_max + tolerance)
+        )
+
+        return torch.tensor([is_inside])
 
     def reset_idx(self, envs_idx: Any) -> None:
         """Reset environment."""
@@ -220,98 +271,24 @@ class PickCubeEnv(BaseEnv):
         )  # 7 joints to match registry format
         self.entities["robot"].reset_to_pose(initial_q)
 
-        # Randomize cube position (this will set new target location and draw debug sphere)
-        self._randomize_cube()
+        # Reset microwave door to closed position
+        current_qpos = self.entities["microwave"].get_qpos()
+        # Keep position and orientation, but set door joint to 0 (closed)
+        reset_qpos = current_qpos.clone()
+        reset_qpos[0, 7] = 0.0  # Set door joint to closed position
+        self.entities["microwave"].set_qpos(reset_qpos)
 
-    def _randomize_cube(self) -> None:
-        """Randomize cube position for new episodes."""
-        # Ensure cube and target are far enough apart to avoid auto-success
-        max_attempts = 10
-        for _attempt in range(max_attempts):
-            cube_pos = (random.uniform(0.2, 0.4), random.uniform(-0.2, 0.2), 0.05)
-            cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
+        # Randomize object positions
+        self._randomize_objects()
 
-            # Set debug sphere to target location (where cube should be placed)
-            target_pos = np.array(
-                [
-                    random.uniform(0.3, 0.5),  # Different from cube spawn location
-                    random.uniform(-0.3, 0.3),
-                    0.0,  # Always on ground plane
-                ]
-            )
-
-            # Check distance between cube and target (only x,y coordinates)
-            cube_xy = np.array(cube_pos[:2])
-            target_xy = target_pos[:2]
-            distance = np.linalg.norm(cube_xy - target_xy)
-
-            # Ensure minimum distance of 15cm to avoid auto-success
-            if distance > 0.15:
-                self.entities["cube"].set_pos(cube_pos)
-                self.entities["cube"].set_quat(cube_quat)
-                self.target_location = target_pos
-                self._draw_target_visualization(target_pos)
-                return
-
-        # Fallback: if we can't find a good position after max_attempts, use fixed positions
-        print("⚠️  Warning: Could not find suitable cube/target positions, using fallback")
-        cube_pos = (0.25, 0.0, 0.05)
-        target_pos = np.array([0.45, 0.0, 0.0])
-        self.entities["cube"].set_pos(cube_pos)
-        self.entities["cube"].set_quat([1, 0, 0, 0])
-        self.target_location = target_pos
-        self._draw_target_visualization(target_pos)
-
-    def set_target_location(self, position: NDArray[np.float64]) -> None:
-        """Set the target location for cube placement."""
-        # Ensure z coordinate is always 0 (on ground plane)
-        target_pos = position.copy()
-        target_pos[2] = 0.0
-        self.target_location = target_pos
-        self._draw_target_visualization(target_pos)
-
-    def _draw_target_visualization(self, position: NDArray[np.float64]) -> None:
-        """Draw the target sphere visualization using Genesis debug sphere."""
-        # Draw debug sphere for the current target point
-        self.scene.draw_debug_sphere(
-            pos=position,
-            radius=0.015,  # Slightly larger for better visibility
-            color=(1, 0, 0, 0.8),  # Red, semi-transparent
-        )
-
-        # Track the current target position
-        self.current_target_pos = position.copy()
-
-    def _check_success_condition(self) -> None:
-        """Check if cube is placed on target location and reset if successful."""
-        # Get current cube position
-        cube_pos = np.array(self.entities["cube"].get_pos())
-
-        # Calculate distance between cube and target (only x,y coordinates)
-        cube_xy = cube_pos[:2]
-        target_xy = self.target_location[:2]
-        distance = np.linalg.norm(cube_xy - target_xy)
-
-        # Success threshold: cube within 5cm of target
-        success_threshold = 0.05
-
-        if distance < success_threshold:
-            print(f"🎯 SUCCESS! Cube placed on target (distance: {distance:.3f}m)")
-            print("🔄 Resetting scene...")
-            # Reset the scene
-            self.reset_idx(None)
+        # Reset target visualization
+        self.current_target_pos = None
 
     def step(self) -> None:
-        """Step the simulation."""
-        # Check for success condition (cube placed on target)
-        self._check_success_condition()
-
-        # Step Genesis simulation
+        """Step the environment."""
         self.scene.step()
 
     @property
     def num_envs(self) -> int:
-        """Number of parallel environments."""
-        return 1  # Single environment for teleop
-
-    # Device property inherited from BaseEnv
+        """Get number of environments."""
+        return self._num_envs

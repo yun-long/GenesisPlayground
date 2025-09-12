@@ -2,11 +2,8 @@ import random
 from typing import Any
 
 import genesis as gs
-import numpy as np
 import torch
 from gs_agent.wrappers.teleop_wrapper import KeyboardCommand
-from numpy.typing import NDArray
-from scipy.spatial.transform import Rotation as R
 
 from gs_env.common.bases.base_env import BaseEnv
 from gs_env.sim.envs.config.schema import EnvArgs
@@ -16,8 +13,8 @@ from gs_env.sim.robots.manipulators import FrankaRobot
 _DEFAULT_DEVICE = torch.device("cpu")
 
 
-class PickCubeEnv(BaseEnv):
-    """Pick cube environment."""
+class HangLifebuoyEnv(BaseEnv):
+    """Hang lifebuoy on hanger environment."""
 
     def __init__(
         self,
@@ -68,13 +65,50 @@ class PickCubeEnv(BaseEnv):
         # Add camera for image capture
         self._setup_camera()
 
-        # Interactive cube
-        cube_pos = args.env_config.get("cube_pos", (0.5, 0.0, 0.07))
-        cube_size = args.env_config.get("cube_size", (0.04, 0.04, 0.04))
-        self.entities["cube"] = self.scene.add_entity(
+        # Table
+        table_pos = args.env_config.get("table_pos", (0.0, 0.0, 0.05))
+        table_size = args.env_config.get("table_size", (0.6, 0.6, 0.1))
+        self.entities["table"] = self.scene.add_entity(
             morph=gs.morphs.Box(
-                pos=cube_pos,
-                size=cube_size,
+                pos=table_pos,
+                size=table_size,
+            ),
+        )
+
+        # Lifebuoy (using the lifebuoy.glb from assets)
+        lifebuoy_scale = args.env_config.get("lifebuoy_scale", 0.03)
+        self.entities["lifebuoy"] = self.scene.add_entity(
+            morph=gs.morphs.Mesh(
+                file="assets/lifebuoy.glb",
+                pos=(0.05, 0.2, 0.15),
+                euler=(0, 0, 90),
+                scale=lifebuoy_scale,
+                collision=True,
+            ),
+        )
+
+        # Hanger (using the hanger.glb from assets)
+        hanger_pos_raw = args.env_config.get("hanger_pos", (0.05, -0.2, 0.15))
+        hanger_euler_raw = args.env_config.get("hanger_euler", (90, 0, 90))
+        hanger_scale_raw = args.env_config.get("hanger_scale", (10, 5, 10))
+        hanger_pos = (
+            tuple(hanger_pos_raw)
+            if isinstance(hanger_pos_raw, list | tuple)
+            else (0.05, -0.2, 0.15)
+        )
+        hanger_euler = (
+            tuple(hanger_euler_raw) if isinstance(hanger_euler_raw, list | tuple) else (90, 0, 90)
+        )
+        hanger_scale = (
+            tuple(hanger_scale_raw) if isinstance(hanger_scale_raw, list | tuple) else (10, 5, 10)
+        )
+        self.entities["hanger"] = self.scene.add_entity(
+            morph=gs.morphs.Mesh(
+                file="assets/hanger.glb",
+                pos=hanger_pos,
+                euler=hanger_euler,
+                scale=hanger_scale,
+                collision=True,
             ),
         )
 
@@ -95,8 +129,8 @@ class PickCubeEnv(BaseEnv):
         # Store entities for easy access
         self.robot = self.entities["robot"]
 
-        # Initialize with randomized cube and target positions
-        self._randomize_cube()
+        # Initialize with randomized positions
+        self._randomize_objects()
 
         # Track current target point for visualization
         self.current_target_pos = None
@@ -109,7 +143,7 @@ class PickCubeEnv(BaseEnv):
         resolution: tuple[int, int] = (640, 480),
     ) -> None:
         """Setup camera for image capture using Genesis camera renderer."""
-        # Add camera to scene (similar to your example)
+        # Add camera to scene (Genesis-specific)
         self.camera = self.scene.add_camera(
             res=resolution,
             pos=pos,  # Camera position
@@ -134,17 +168,21 @@ class PickCubeEnv(BaseEnv):
 
     def initialize(self) -> None:
         """Initialize the environment."""
-        # Clear any existing debug objects
-        self.scene.clear_debug_objects()
+        # Set lifebuoy mass
+        self.entities["lifebuoy"].set_mass(0.01)
 
-        # Set initial robot pose
-        initial_q = torch.tensor([0.0, -0.3, 0.5, 0.0, 0.0, 0.0, 0.0], dtype=torch.float32)
-        self.entities["robot"].reset_to_pose(initial_q)
+    def _randomize_objects(self) -> None:
+        """Randomize object positions."""
+        # Randomize lifebuoy position on table
+        lifebuoy_x = random.uniform(-0.1, 0.1)
+        lifebuoy_y = random.uniform(0.1, 0.3)
+        lifebuoy_pos = torch.tensor([lifebuoy_x, lifebuoy_y, 0.15], dtype=torch.float32)
+        self.entities["lifebuoy"].set_pos(lifebuoy_pos)
 
-        # Randomize cube position (this will set new target location and draw debug sphere)
-        self._randomize_cube()
+        # Hanger position is fixed
+        hanger_pos = torch.tensor([0.05, -0.2, 0.15], dtype=torch.float32)
+        self.entities["hanger"].set_pos(hanger_pos)
 
-    # TODO: should not use Any but KeyboardCommand
     def apply_action(self, action: torch.Tensor | KeyboardCommand) -> None:
         """Apply action to the environment (BaseEnv requirement)."""
         # Skip empty tensors from teleop wrapper
@@ -178,14 +216,17 @@ class PickCubeEnv(BaseEnv):
         observations = {
             "ee_pose": self.entities["robot"].ee_pose,
             "joint_positions": self.entities["robot"].joint_positions,
-            "cube_pos": self.entities["cube"].get_pos(),
-            "cube_quat": self.entities["cube"].get_quat(),
+            "lifebuoy_pos": self.entities["lifebuoy"].get_pos(),
+            "lifebuoy_quat": self.entities["lifebuoy"].get_quat(),
+            "hanger_pos": self.entities["hanger"].get_pos(),
+            "hanger_quat": self.entities["hanger"].get_quat(),
         }
 
         # Add RGB images using base class helper
         return self._add_rgb_to_observations(observations)
 
     def get_ee_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get end-effector pose for teleop wrapper."""
         robot_pos = self.entities["robot"].ee_pose
         return robot_pos[..., :3], robot_pos[..., 3:]
 
@@ -202,12 +243,27 @@ class PickCubeEnv(BaseEnv):
         return torch.tensor([False])
 
     def get_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        """Get reward and reward components."""
+        """Get reward."""
         return torch.tensor([0.0]), {}
 
     def is_episode_complete(self) -> torch.Tensor:
-        """Check if episode is complete."""
-        return torch.tensor([False])  # Episodes don't end automatically
+        """Check if episode is complete - lifebuoy is hanging on hanger."""
+        # Get AABB (Axis-Aligned Bounding Box) for both objects
+        lifebuoy_aabb = self.entities["lifebuoy"].get_AABB()  # [2, 3] - min and max corners
+        hanger_aabb = self.entities["hanger"].get_AABB()  # [2, 3] - min and max corners
+
+        # Check if lifebuoy is in contact with hanger using AABB intersection
+        # Lifebuoy is hanging if its AABB intersects with hanger AABB
+        lifebuoy_min, lifebuoy_max = lifebuoy_aabb[0], lifebuoy_aabb[1]
+        hanger_min, hanger_max = hanger_aabb[0], hanger_aabb[1]
+
+        # Check if lifebuoy is in contact with hanger (with some tolerance)
+        tolerance = 0.05  # 5cm tolerance
+        is_contacting = torch.all(
+            (lifebuoy_min <= hanger_max + tolerance) & (lifebuoy_max >= hanger_min - tolerance)
+        )
+
+        return torch.tensor([is_contacting])
 
     def reset_idx(self, envs_idx: Any) -> None:
         """Reset environment."""
@@ -220,98 +276,17 @@ class PickCubeEnv(BaseEnv):
         )  # 7 joints to match registry format
         self.entities["robot"].reset_to_pose(initial_q)
 
-        # Randomize cube position (this will set new target location and draw debug sphere)
-        self._randomize_cube()
+        # Randomize object positions
+        self._randomize_objects()
 
-    def _randomize_cube(self) -> None:
-        """Randomize cube position for new episodes."""
-        # Ensure cube and target are far enough apart to avoid auto-success
-        max_attempts = 10
-        for _attempt in range(max_attempts):
-            cube_pos = (random.uniform(0.2, 0.4), random.uniform(-0.2, 0.2), 0.05)
-            cube_quat = R.from_euler("z", random.uniform(0, np.pi * 2)).as_quat()
-
-            # Set debug sphere to target location (where cube should be placed)
-            target_pos = np.array(
-                [
-                    random.uniform(0.3, 0.5),  # Different from cube spawn location
-                    random.uniform(-0.3, 0.3),
-                    0.0,  # Always on ground plane
-                ]
-            )
-
-            # Check distance between cube and target (only x,y coordinates)
-            cube_xy = np.array(cube_pos[:2])
-            target_xy = target_pos[:2]
-            distance = np.linalg.norm(cube_xy - target_xy)
-
-            # Ensure minimum distance of 15cm to avoid auto-success
-            if distance > 0.15:
-                self.entities["cube"].set_pos(cube_pos)
-                self.entities["cube"].set_quat(cube_quat)
-                self.target_location = target_pos
-                self._draw_target_visualization(target_pos)
-                return
-
-        # Fallback: if we can't find a good position after max_attempts, use fixed positions
-        print("⚠️  Warning: Could not find suitable cube/target positions, using fallback")
-        cube_pos = (0.25, 0.0, 0.05)
-        target_pos = np.array([0.45, 0.0, 0.0])
-        self.entities["cube"].set_pos(cube_pos)
-        self.entities["cube"].set_quat([1, 0, 0, 0])
-        self.target_location = target_pos
-        self._draw_target_visualization(target_pos)
-
-    def set_target_location(self, position: NDArray[np.float64]) -> None:
-        """Set the target location for cube placement."""
-        # Ensure z coordinate is always 0 (on ground plane)
-        target_pos = position.copy()
-        target_pos[2] = 0.0
-        self.target_location = target_pos
-        self._draw_target_visualization(target_pos)
-
-    def _draw_target_visualization(self, position: NDArray[np.float64]) -> None:
-        """Draw the target sphere visualization using Genesis debug sphere."""
-        # Draw debug sphere for the current target point
-        self.scene.draw_debug_sphere(
-            pos=position,
-            radius=0.015,  # Slightly larger for better visibility
-            color=(1, 0, 0, 0.8),  # Red, semi-transparent
-        )
-
-        # Track the current target position
-        self.current_target_pos = position.copy()
-
-    def _check_success_condition(self) -> None:
-        """Check if cube is placed on target location and reset if successful."""
-        # Get current cube position
-        cube_pos = np.array(self.entities["cube"].get_pos())
-
-        # Calculate distance between cube and target (only x,y coordinates)
-        cube_xy = cube_pos[:2]
-        target_xy = self.target_location[:2]
-        distance = np.linalg.norm(cube_xy - target_xy)
-
-        # Success threshold: cube within 5cm of target
-        success_threshold = 0.05
-
-        if distance < success_threshold:
-            print(f"🎯 SUCCESS! Cube placed on target (distance: {distance:.3f}m)")
-            print("🔄 Resetting scene...")
-            # Reset the scene
-            self.reset_idx(None)
+        # Reset target visualization
+        self.current_target_pos = None
 
     def step(self) -> None:
-        """Step the simulation."""
-        # Check for success condition (cube placed on target)
-        self._check_success_condition()
-
-        # Step Genesis simulation
+        """Step the environment."""
         self.scene.step()
 
     @property
     def num_envs(self) -> int:
-        """Number of parallel environments."""
-        return 1  # Single environment for teleop
-
-    # Device property inherited from BaseEnv
+        """Get number of environments."""
+        return self._num_envs

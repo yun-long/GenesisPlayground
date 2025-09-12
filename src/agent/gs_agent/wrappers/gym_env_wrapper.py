@@ -20,14 +20,14 @@ class GymEnvWrapper(BaseEnvWrapper):
     # ---------------------------
     # BatchEnvWrapper API (batch)
     # ---------------------------
-    def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
+    def reset(self) -> tuple[dict[str, Any], dict[str, Any]]:
         obs, info = self.env.reset()
         self._curr_obs = torch.tensor(obs, device=self.device).unsqueeze(0)
-        return self._curr_obs, info
+        return {"obs": self._curr_obs}, info
 
     def step(
         self, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
+    ) -> tuple[dict[str, Any], torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
         gym_actions = action.clone().cpu().numpy().squeeze(0)  # shape: [action_dim]
 
         obs, reward, terminated, truncated, info = self.env.step(gym_actions)
@@ -42,10 +42,10 @@ class GymEnvWrapper(BaseEnvWrapper):
         reward_batch = torch.as_tensor([[float(reward)]], device=self.device)
         terminated_batch = torch.as_tensor([[terminated]], device=self.device)
         truncated_batch = torch.as_tensor([[truncated]], device=self.device)
-        return self._curr_obs, reward_batch, terminated_batch, truncated_batch, info
+        return {"obs": self._curr_obs}, reward_batch, terminated_batch, truncated_batch, info
 
-    def get_observations(self) -> torch.Tensor:
-        return self._curr_obs
+    def get_observations(self) -> dict[str, Any]:
+        return {"obs": self._curr_obs}
 
     @property
     def action_dim(self) -> int:
