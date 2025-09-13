@@ -278,7 +278,9 @@ class KeyboardWrapper(BaseEnvWrapper):
                 # only change the x axis rotation angle
                 new_euler = [current_euler[0] + drot, current_euler[1], current_euler[2]]
                 new_rotation = R.from_euler("xyz", new_euler)
-                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
+                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(
+                    self.target_orientation.device
+                )
             elif key == keyboard.KeyCode.from_char("k"):
                 # keep the end effector vertical down, only change the rotation around the x axis
                 current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
@@ -287,7 +289,9 @@ class KeyboardWrapper(BaseEnvWrapper):
                 # only change the x axis rotation angle
                 new_euler = [current_euler[0] - drot, current_euler[1], current_euler[2]]
                 new_rotation = R.from_euler("xyz", new_euler)
-                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(self.target_orientation.device)
+                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(
+                    self.target_orientation.device
+                )
             elif key == keyboard.Key.space:
                 is_close_gripper = True
 
