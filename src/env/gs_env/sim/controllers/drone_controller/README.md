@@ -4,9 +4,8 @@
 - Install dependencies by: `pip install -e`
 
 #### Use RC control FPV in Genesis
-- Flash HEX file in `./utils/modified_BF_firmware/betaflight_4.4.0_STM32H743_forRC.hex` to your FCU (for STM32H743)
-- Use Type-c to power the FCU, and connect UART port (on FCU) and USB port (on PC) through USB2TTL module, like:
-- <img src="./docs/1.png"  width="300" /> <br>
+- Flash HEX file in `./modified_BF_firmware/betaflight_4.4.0_STM32H743_forRC.hex` to your FCU (for STM32H743)
+- Use Type-c to power the FCU, and connect UART port (on FCU) and USB port (on PC) through USB2TTL module
 - Connect the FC and use mavlink to send FC_data from FCU to PC
 - Use `ls /dev/tty*` to check the port id and modified param `USB_path` in `./config/flight.yaml`
 - Do this since the default mavlink frequence for rc_channle is too low
@@ -21,4 +20,5 @@
     ```
 
 ### NOTE
+- Use `pip install pymavlink` to install pymavlink
 - Add `export SETUPTOOLS_USE_DISTUTILS=stdlib` into ~/.bashrc if distutils.core has been pointed to distutils but not setuptools/_distutils, or an assert will be triggered in some cases
