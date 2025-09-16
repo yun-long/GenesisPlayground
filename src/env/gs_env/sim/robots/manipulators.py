@@ -73,6 +73,8 @@ class ManipulatorBase(BaseGymRobot):
                         ),  # roll, pitch, yaw
                     }
                 )
+            case CtrlType.DR_JOINT_POSITION:
+                raise RuntimeError("DR control not supported for manipulator.")
 
         self._action_space = spaces.Dict(action_space_dict)
 
@@ -177,6 +179,8 @@ class ManipulatorBase(BaseGymRobot):
                         ee_link_ang_delta=action[..., 3:6],
                         gripper_width=0.0,
                     )
+                case CtrlType.DR_JOINT_POSITION:
+                    raise RuntimeError("DR control not supported for manipulator.")
         self._dispatch[self._args.ctrl_type](action)
 
     def _apply_joint_pos(self, act: JointPosAction) -> None:

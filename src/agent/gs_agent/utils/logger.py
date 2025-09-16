@@ -14,7 +14,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from io import TextIOBase
-from typing import Any, TextIO
+from typing import Any, TextIO, Literal
 
 import numpy as np
 import pandas
@@ -476,10 +476,11 @@ class WandbOutputFormat(KVWriter):
         entity: str | None = None,
         config: dict[str, Any] | None = None,
         log_dir: str | None = None,
+        mode: Literal["online", "offline", "disabled"] = "online",
     ):
         if log_dir is not None:
             os.environ["WANDB_DIR"] = log_dir
-        wandb.init(project=project, entity=entity, config=config)
+        wandb.init(project=project, entity=entity, config=config, mode=mode)
         self.run = wandb.run
 
     def write(
@@ -528,6 +529,7 @@ def make_output_format(_format: str, log_dir: str, log_suffix: str = "", **kwarg
             entity=kwargs.get("entity", None),
             config=kwargs.get("config", None),
             log_dir=log_dir,
+            mode=kwargs.get("mode", "online"),
         )
     else:
         raise ValueError(f"Unknown format specified: {_format}")
@@ -712,7 +714,7 @@ class Logger:
                 _format.write_sequence(list(map(str, args)))
 
 
-def configure(folder: str | None = None, format_strings: list[str] | None = None) -> Logger:
+def configure(folder: str | None = None, format_strings: list[str] | None = None, **kwargs) -> Logger:
     """
     Configure the current logger.
 
@@ -737,7 +739,7 @@ def configure(folder: str | None = None, format_strings: list[str] | None = None
         format_strings = os.getenv("GSRL_LOG_FORMAT", "stdout,log,csv").split(",")
 
     format_strings = list(filter(None, format_strings))
-    output_formats = [make_output_format(f, folder, log_suffix) for f in format_strings]
+    output_formats = [make_output_format(f, folder, log_suffix, **kwargs) for f in format_strings]
 
     logger = Logger(folder=folder, output_formats=output_formats)
     # Only print when some files will be saved

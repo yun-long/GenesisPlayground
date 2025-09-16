@@ -1,3 +1,4 @@
+import importlib
 from typing import Any
 
 import genesis as gs
@@ -6,7 +7,6 @@ import numpy as np
 import torch
 
 from gs_env.common.bases.base_env import BaseEnv
-from gs_env.common.rewards import ActionL2Penalty, KeypointsAlign
 from gs_env.common.utils.math_utils import quat_mul
 from gs_env.common.utils.misc_utils import get_space_dim
 from gs_env.sim.envs.config.schema import EnvArgs
@@ -35,7 +35,7 @@ class GoalReachingEnv(BaseEnv):
         self._args = args
 
         if not gs._initialized:  # noqa: SLF001
-            gs.init(performance_mode=True)
+            gs.init(performance_mode=True, backend=getattr(gs.constants.backend, device.type))
 
         # == setup the scene ==
         self._scene = FlatScene(
@@ -63,8 +63,14 @@ class GoalReachingEnv(BaseEnv):
 
         # == setup reward scalars and functions ==
         dt = self._scene.scene.dt
-        self.rwd_action_l2 = ActionL2Penalty(scale=args.reward_args["rew_actions"] * dt)
-        self.rwd_keypoints = KeypointsAlign(scale=args.reward_args["rew_keypoints"] * dt)
+        self._reward_functions = {}
+        module_name = f"gs_env.common.rewards.{self._args.reward_term}_terms"
+        module = importlib.import_module(module_name)
+        for key in args.reward_args.keys():
+            reward_func = getattr(module, key, None)
+            if reward_func is None:
+                raise ValueError(f"Reward {key} not found in rewards module.")
+            self._reward_functions[key] = reward_func(scale=args.reward_args[key] * dt)
 
         # some auxiliary variables
         self._max_sim_time = 3.0  # seconds
@@ -173,28 +179,21 @@ class GoalReachingEnv(BaseEnv):
         return action * action_scale
 
     def get_reward(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-        # Squared-L2 action penalty
-        reward_actions = self.rwd_action_l2(
-            {
-                "action": self.action_buf,  #
-            }
-        )
-        # Key-point alignment
-        reward_keypoints = self.rwd_keypoints(
-            {
-                "pose_a": self._robot.ee_pose,  # current pose
-                "pose_b": self.goal_pose,  # goal pose
-                "key_offsets": self.keypoints_offset,
-            }
-        )
-        #
-        reward_total = reward_actions + reward_keypoints
+        reward_total = torch.zeros(self.num_envs, device=self._device)
+        reward_dict = {}
+        for key, func in self._reward_functions.items():
+            reward = func(
+                {
+                    "action": self.action_buf,  #
+                    "pose_a": self._robot.ee_pose,  # current pose
+                    "pose_b": self.goal_pose,  # goal pose
+                    "key_offsets": self.keypoints_offset,
+                }
+            )
+            reward_total += reward
+            reward_dict[f"reward_{key}"] = reward
+        reward_dict["reward_total"] = reward_total
 
-        reward_dict = {
-            "reward_actions": reward_actions,
-            "reward_keypoints": reward_keypoints,
-            "reward_total": reward_total,
-        }
         return reward_total, reward_dict
 
     @property

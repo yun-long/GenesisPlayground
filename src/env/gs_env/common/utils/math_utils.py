@@ -57,6 +57,39 @@ def quat_to_rotmat(q: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
+def quat_to_euler(q: torch.Tensor) -> torch.Tensor:  # xyz
+    """Convert quaternions to Euler angles (roll, pitch, yaw).
+    Args:
+        quat: Tensor of shape (N, 4), where each row is a quaternion in (w, x, y, z) format.
+    Returns:
+        Tensor of shape (N, 3), where each row is (roll, pitch, yaw) in radians.
+    """
+    assert q.shape[-1] == 4, "Quaternion must be of shape [..., 4]"
+
+    qw, qx, qy, qz = q.unbind(-1)
+
+    # Roll (x-axis rotation)
+    sinr_cosp = 2 * (qw * qx + qy * qz)
+    cosr_cosp = 1 - 2 * (qx * qx + qy * qy)
+    roll = torch.atan2(sinr_cosp, cosr_cosp)
+
+    # Pitch (y-axis rotation)
+    sinp = 2 * (qw * qy - qz * qx)
+    pitch = torch.where(
+        torch.abs(sinp) >= 1,
+        torch.sign(sinp) * torch.tensor(torch.pi / 2),
+        torch.asin(sinp),
+    )
+
+    # Yaw (z-axis rotation)
+    siny_cosp = 2 * (qw * qz + qx * qy)
+    cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
+    yaw = torch.atan2(siny_cosp, cosy_cosp)
+
+    return torch.stack([roll, pitch, yaw], dim=-1)
+
+
+@torch.jit.script
 def normalize(x: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
     """Normalizes a given input tensor to unit length.
 

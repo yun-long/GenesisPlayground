@@ -59,6 +59,8 @@ class CtrlType(GenesisEnum):
     JOINT_POSITION = "JOINT_POSITION"
     EE_POSE_ABS = "EE_POSE_ABS"  # Absolute pose
     EE_POSE_REL = "EE_POSE_REL"  # Delta pose from current EE pose
+    # Legged Control Types
+    DR_JOINT_POSITION = "DR_JOINT_POSITION"  # Noised position control for legged robots
 
 
 class IKSolver(GenesisEnum):
@@ -80,6 +82,47 @@ class ManipulatorRobotArgs(BaseModel):
     gripper_link_names: list[str]
     default_arm_dof: dict[str, float]
     default_gripper_dof: dict[str, float] | None = None
+
+
+class DomainRandomizationArgs(BaseModel):
+    model_config = genesis_pydantic_config(frozen=True)
+
+    kp_range: tuple[float, float]
+    kd_range: tuple[float, float]
+    motor_strength_range: tuple[float, float]
+    motor_offset_range: tuple[float, float]
+    friction_range: tuple[float, float]
+    mass_range: tuple[float, float]
+    com_displacement_range: tuple[float, float]
+
+
+class LeggedRobotArgs(BaseModel):
+    model_config = genesis_pydantic_config(frozen=True)
+
+    material_args: RigidMaterialArgs
+    morph_args: URDFMorphArgs
+    dr_args: DomainRandomizationArgs
+    visualize_contact: bool
+    vis_mode: str
+    ctrl_type: CtrlType
+    body_link_name: str
+    show_target: bool
+    dof_names: list[str]
+    default_dof: dict[str, float]
+    soft_dof_pos_range: float
+    dof_kp: dict[str, float]
+    dof_kd: dict[str, float]
+    action_scale: float
+    ctrl_freq: int
+    decimation: int
+
+
+class QuadrupedRobotArgs(LeggedRobotArgs): ...
+
+
+class HumanoidRobotArgs(LeggedRobotArgs):
+    left_foot_link_name: str
+    right_foot_link_name: str
 
 
 class JointPosAction(BaseModel):
@@ -105,4 +148,10 @@ class EEPoseRelAction(BaseModel):
     ee_link_ang_delta: torch.Tensor  # (3,)
 
 
-BaseAction: TypeAlias = JointPosAction | EEPoseAbsAction | EEPoseRelAction
+class DRJointPosAction(BaseModel):
+    model_config = genesis_pydantic_config(frozen=True, arbitrary_types_allowed=True)
+
+    joint_pos: torch.Tensor  # (n_dof,)
+
+
+BaseAction: TypeAlias = JointPosAction | EEPoseAbsAction | EEPoseRelAction | DRJointPosAction
