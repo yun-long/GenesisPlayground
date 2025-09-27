@@ -7,7 +7,6 @@ from typing import Any
 import numpy as np
 import torch
 from pynput import keyboard
-from scipy.spatial.transform import Rotation as R
 
 from gs_agent.bases.env_wrapper import BaseEnvWrapper
 
@@ -256,7 +255,6 @@ class KeyboardWrapper(BaseEnvWrapper):
         # get ee target pose
         is_close_gripper = False
         dpos = 0.005
-        drot = 0.01
         for key in pressed_keys:
             if key == keyboard.Key.up:
                 self.target_position[0, 0] -= dpos
@@ -271,27 +269,9 @@ class KeyboardWrapper(BaseEnvWrapper):
             elif key == keyboard.KeyCode.from_char("m"):
                 self.target_position[0, 2] -= dpos
             elif key == keyboard.KeyCode.from_char("j"):
-                # keep the end effector vertical down, only change the rotation around the x axis
-                current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
-                # get the current x axis rotation angle
-                current_euler = current_rotation.as_euler("xyz", degrees=False)
-                # only change the x axis rotation angle
-                new_euler = [current_euler[0] + drot, current_euler[1], current_euler[2]]
-                new_rotation = R.from_euler("xyz", new_euler)
-                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(
-                    self.target_orientation.device
-                )
+                raise NotImplementedError("Rotation not implemented")
             elif key == keyboard.KeyCode.from_char("k"):
-                # keep the end effector vertical down, only change the rotation around the x axis
-                current_rotation = R.from_quat(self.target_orientation[0, :].cpu().numpy())
-                # get the current x axis rotation angle
-                current_euler = current_rotation.as_euler("xyz", degrees=False)
-                # only change the x axis rotation angle
-                new_euler = [current_euler[0] - drot, current_euler[1], current_euler[2]]
-                new_rotation = R.from_euler("xyz", new_euler)
-                self.target_orientation[0, :] = torch.from_numpy(new_rotation.as_quat()).to(
-                    self.target_orientation.device
-                )
+                raise NotImplementedError("Rotation not implemented")
             elif key == keyboard.Key.space:
                 is_close_gripper = True
 
