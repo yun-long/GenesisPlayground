@@ -28,3 +28,5 @@ class EnvArgs(BaseModel):
     sensors_args: list[SensorArgs]
     reward_args: dict[str, float]
     img_resolution: tuple[int, int]
+    # Environment-specific configuration
+    env_config: dict[str, float | bool | tuple[float, ...]] = {}

@@ -35,7 +35,7 @@ def main() -> None:
         seed=0,
         precision="32",
         logging_level="info",
-        backend=gs.cpu,  # type: ignore
+        backend=gs.cpu,
     )
 
     try:
@@ -49,7 +49,7 @@ def main() -> None:
         )
 
         # Start teleop wrapper (keyboard listener) FIRST, before creating Genesis scene
-        teleop_wrapper.start()  # type: ignore
+        teleop_wrapper.start()
 
         # Create task environment AFTER teleop wrapper is running
         env = create_gs_env()

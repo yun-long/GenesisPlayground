@@ -4,7 +4,6 @@ import threading
 import time
 from typing import Any
 
-import numpy as np
 import torch
 from pynput import keyboard
 
@@ -169,15 +168,15 @@ class KeyboardWrapper(BaseEnvWrapper):
         if self.listener:
             self.listener.stop()
 
-    def reset(self) -> tuple[torch.Tensor, dict[str, Any]]:
+    def reset(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Reset the environment."""
         self._env.reset_idx(torch.IntTensor([0]))
         obs = self._convert_observation_to_dict()
-        return torch.tensor([]), obs
+        return obs, {}
 
     def step(
         self, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
+    ) -> tuple[dict[str, Any], torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Any]]:
         """Step the environment with teleop input."""
         # Process keyboard input and create command
         command = self._process_input()
@@ -194,34 +193,28 @@ class KeyboardWrapper(BaseEnvWrapper):
 
         # Return teleop-specific format (rewards/termination not applicable)
         return (
-            torch.tensor([]),  # next_obs
+            obs,  # next_obs
             torch.tensor([0.0]),  # reward
             torch.tensor([False]),  # terminated
             torch.tensor([False]),  # truncated
-            obs,  # extra_infos
+            {},  # extra_infos
         )
 
-    def get_observations(self) -> torch.Tensor:
+    def get_observations(self) -> dict[str, Any]:
         """Get current observations."""
         return self._env.get_observations()
 
     def _convert_observation_to_dict(self) -> dict[str, Any]:
-        """Convert tensor observation to dictionary format for teleop compatibility."""
+        """Convert observation to dictionary format for teleop compatibility."""
+        if not hasattr(self, "_env") or self._env is None:
+            return {}
 
-        # Get cube position
-        cube_pos = np.array(self._env.entities["cube"].get_pos())
-        cube_quat = np.array(self._env.entities["cube"].get_quat())
+        # Get the observation dictionary from the environment
+        observation = self._env.get_observations()
 
-        # Create observation dictionary (for teleop compatibility)
-        observation = {
-            "ee_pose": self._env.entities["robot"].ee_pose,
-            # "end_effector_pos": robot_obs["end_effector_pos"],
-            # "end_effector_quat": robot_obs["end_effector_quat"],
-            "cube_pos": cube_pos,
-            "cube_quat": cube_quat,
-            "rgb_images": {},  # No cameras in this simple setup
-            "depth_images": {},  # No depth sensors in this simple setup
-        }
+        # Add teleop-specific fields
+        observation["rgb_images"] = {}  # No cameras in this simple setup
+        observation["depth_images"] = {}  # No depth sensors in this simple setup
 
         return observation
 
